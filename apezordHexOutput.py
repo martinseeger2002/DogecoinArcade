@@ -5,7 +5,7 @@ from bitcoin.core.script import CScript
 # Configuration
 NODE_RPC_HOST = "127.0.0.1:22555"
 NODE_RPC_USER = "your_rpc_user"
-NODE_RPC_PASS = "veracity31"
+NODE_RPC_PASS = "your_rpc_pass"
 TXID = "15f3b73df7e5c072becb1d84191843ba080734805addfccb650929719080f62e"
 
 def extract_data(script_hex):
