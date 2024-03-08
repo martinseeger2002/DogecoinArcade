@@ -1,6 +1,6 @@
 apezordHexOutput.py
 This script extracts the data from the apezord.png TXID
-The apezordhex file is the .
+The apezordhex file is the hex of base64 of .png.
 
 In the output of the apezordHexOutput.py hex there is extra hex inclued beyond the hex of base64 of png.
 
