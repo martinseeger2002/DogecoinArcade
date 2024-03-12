@@ -31,7 +31,7 @@ This repository contains a Python-based tool for extracting and assembling data 
 ## Installation
 
 1. Clone the repository.
-2. Install the required Python packages using `pip install -r requirements.txt` (You may need to create this file and list `bitcoinrpc`).
+2. Install the required Python packages using ```pip install python-bitcoinRPC```.
 3. Ensure you have access to a Dogecoin node with RPC enabled and configured.
 
 ## Configuration
