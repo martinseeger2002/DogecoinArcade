@@ -41,3 +41,5 @@ Set the following parameters in `main.py`:
 - `NODE_RPC_HOST`: Hostname and port of the Dogecoin node.
 - `NODE_RPC_USER`: RPC user.
 - `NODE_RPC_PASS`: RPC password.
+
+Tips are welcome. `DPQkEQgNkJz5oarv3iunBYRVRQrS6hp1E6`
