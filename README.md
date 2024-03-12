@@ -6,8 +6,8 @@ This repository contains a Python-based tool for extracting and assembling data 
 
 ## Files in the Repository
 
-- `assemble_data.py`: Contains functions for processing a text file containing Dogecoin transaction data, splitting this data into parts, assembling it into a hex string, and then converting this string into a file of an appropriate type based on its MIME type.
 - `dogecoin_transaction_details.py`: This script connects to a Dogecoin node using RPC (Remote Procedure Call) and retrieves transaction details based on a given transaction ID (TXID).
+- `assemble_data.py`: Contains functions for processing a text file containing Dogecoin transaction data, splitting this data into parts, assembling it into a hex string, and then converting this string into a file of an appropriate type based on its MIME type.
 - `main.py`: The main script that uses the functionalities of the other two scripts. It extracts 'scriptSig' data from transactions, looks for a specific sequence in these transactions, and saves the relevant data into a file.
 
 ## Features
