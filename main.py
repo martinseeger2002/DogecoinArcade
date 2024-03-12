@@ -4,7 +4,7 @@ import dogecoin_transaction_details as dt
 # Configuration
 NODE_RPC_HOST = "127.0.0.1:22555"
 NODE_RPC_USER = "your_rpc_user"
-NODE_RPC_PASS = "veracity31"
+NODE_RPC_PASS = "your_rpc_pass"
 TXID = "f32ddc0bf29d46ef2460dc8e7dc071790237195160e294a462cdeb698f146f3d"
 
 scriptSig_list = []  # Initialize the list to store 'scriptSig' data
