@@ -1,3 +1,4 @@
+#assemble_data.py
 import mimetypes
 
 file_path = 'temp_scriptSig_list.txt'
