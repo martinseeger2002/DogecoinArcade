@@ -1,3 +1,4 @@
+#main
 from assemble_data import process_file, save_data_as_hex_txt, save_file_as_file
 import dogecoin_transaction_details as dt
 
