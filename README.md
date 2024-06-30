@@ -9,7 +9,7 @@ This script extracts data from Dogecoin ordinal transactions and compiles it int
 2. **BitcoinRPC Library**:
    Install the `python-bitcoinlRPC` library using:
    ```sh
-   pip install python-bitcoinlib
+   pip install python-bitcoinRPC
    ```
 3. **Dogecoin Node**:
    Ensure you have a running Dogecoin node with RPC enabled. 
