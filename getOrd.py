@@ -164,4 +164,4 @@ def process_tx(genesis_txid, depth=10):
 
 # Example usage
 genesis_txid = "28e222a31f5195a71933b306412fe5b2f039390e3876586674d2f047761a7e29"
-process_tx(genesis_txid, depth=10)  # Start with a depth of 10 blocks
+process_tx(genesis_txid, depth=500)  # Start with a depth of 500 blocks
