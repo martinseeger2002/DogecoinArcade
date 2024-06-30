@@ -66,7 +66,7 @@ This script extracts data from Dogecoin ordinal transactions and compiles it int
 
 Modify the `genesis_txid` variable in the script with the genesis transaction ID you want to process and run the script:
 ```sh
-python your_script_name.py
+python getOrd.py
 ```
 
 ### Output
