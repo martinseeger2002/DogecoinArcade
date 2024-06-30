@@ -1,45 +1,82 @@
 
-# GitHub Repository: Dogecoin Data Extraction and Assembly Tool
+# Dogecoin Ordinal Data Extractor
 
-## Overview
-This repository contains a Python-based tool for extracting and assembling data from Dogecoin transactions. The tool is primarily focused on processing transaction details from a Dogecoin node, extracting specific pieces of data from these transactions, and then assembling this data into a coherent file format based on the MIME type.
-
-## Files in the Repository
-
-- `dogecoin_transaction_details.py`: This script connects to a Dogecoin node using RPC (Remote Procedure Call) and retrieves transaction details based on a given transaction ID (TXID).
-- `assemble_data.py`: Contains functions for processing a text file containing Dogecoin transaction data, splitting this data into parts, assembling it into a hex string, and then converting this string into a file of an appropriate type based on its MIME type.
-- `main.py`: The main script that uses the functionalities of the other two scripts. It extracts 'scriptSig' data from transactions, looks for a specific sequence in these transactions, and saves the relevant data into a file.
-
-## Features
-
-1. **Extract Transaction Details**: Connects to a Dogecoin node and extracts details from specific transactions.
-2. **Data Processing**: Processes the extracted data to find specific sequences and splits the data into manageable parts.
-3. **File Assembly**: Reconstructs the processed data into a coherent format and saves it into a file, the type of which is determined based on its MIME type.
-
-## How to Use
-
-1. **Setup Node Connection**: Configure the Dogecoin node connection settings in `main.py` (RPC host, user, and password).
-2. **Run main.py**: Execute `main.py`. This script will use the other two scripts to extract data from transactions and assemble it into a file.
-3. **Check Output**: The output will be saved in a file whose path is printed to the console.
+This script extracts data from Dogecoin ordinal transactions and compiles it into a file. It processes a genesis transaction and subsequent transactions to reconstruct the original data.
 
 ## Prerequisites
 
-- Python 3.x
-- Access to a Dogecoin node with RPC enabled.
-- Required Python packages: `bitcoinrpc`.
-
-## Installation
-
-1. Clone the repository.
-2. Install the required Python packages using `pip install python-bitcoinRPC`.
-3. Ensure you have access to a Dogecoin node with RPC enabled and configured.
+1. **Python 3.6+**
+2. **BitcoinRPC Library**:
+   Install the `python-bitcoinlib` library using:
+   ```sh
+   pip install python-bitcoinlib
+   ```
+3. **Dogecoin Node**:
+   Ensure you have a running Dogecoin node with RPC enabled. 
 
 ## Configuration
 
-Set the following parameters in `main.py`:
+1. **RPC Configuration**:
+   Update the following configuration in the script with your Dogecoin node's RPC credentials:
+   ```python
+   RPC_USER = "your_rpc_user"
+   RPC_PASSWORD = "your_rpc_password"
+   RPC_HOST = "192.168.68.105"
+   RPC_PORT = 22555
+   ```
 
-- `NODE_RPC_HOST`: Hostname and port of the Dogecoin node.
-- `NODE_RPC_USER`: RPC user.
-- `NODE_RPC_PASS`: RPC password.
+## How to Use
 
-Tips are welcome. `DPQkEQgNkJz5oarv3iunBYRVRQrS6hp1E6`
+1. **Clone the Repository**:
+   ```sh
+   git clone https://github.com/your-repo/dogecoin-ordinal-extractor.git
+   cd dogecoin-ordinal-extractor
+   ```
+
+2. **Run the Script**:
+   Modify the `genesis_txid` variable in the script to the genesis transaction ID you want to process, and run the script:
+   ```python
+   genesis_txid = "your_genesis_txid"
+   process_tx(genesis_txid, depth=10)  # Adjust depth as needed
+   ```
+
+## Script Description
+
+### Functions
+
+1. **hex_to_ascii(hex_string)**:
+   Converts a hexadecimal string to an ASCII string.
+
+2. **save_to_file(data_string, mime_type, genesis_txid)**:
+   Saves the compiled data string to a file with the appropriate MIME type extension.
+
+3. **process_genesis_tx(asm_data)**:
+   Processes the genesis transaction and extracts the initial data chunks and MIME type.
+
+4. **process_subsequent_tx(asm_data)**:
+   Processes subsequent transactions to extract data chunks.
+
+5. **find_next_ordinal_tx(txid, depth)**:
+   Finds the next ordinal transaction ID by scanning the blockchain within the specified depth.
+
+6. **process_tx(genesis_txid, depth=10)**:
+   Main function to process the genesis transaction and subsequent transactions to compile the data string and save it to a file.
+
+### Example Usage
+
+Modify the `genesis_txid` variable in the script with the genesis transaction ID you want to process and run the script:
+```sh
+python your_script_name.py
+```
+
+### Output
+
+The script will print the MIME type and data chunks while processing. Once it compiles the entire data, it saves the data to a file with the name being the genesis transaction ID and the appropriate file extension.
+
+## Error Handling
+
+The script handles JSON-RPC exceptions and conversion errors. If any unexpected error occurs, it will print the error message and stop further processing.
+
+---
+
+Feel free to reach out for any further assistance or queries!
