@@ -29,6 +29,8 @@ def serve_content(file_id):
             except Exception as e:
                 print(f"Error reading HTML file: {e}")
                 abort(500)
+        elif file_extension == '.webp':
+            return send_file(file_path, mimetype='image/webp')  # Display .webp file in the browser
         else:
             return send_file(file_path)  # For other file types, send the file directly
     else:
@@ -61,7 +63,7 @@ def not_found_error(error):
         <meta http-equiv="refresh" content="5">
     </head>
     <body>
-        <p>Content not found. The page will refresh shortly...</p>
+        <p>Extracting Ord, check terminal and click refresh when num_chunk=0...</p>
     </body>
     </html>
     '''

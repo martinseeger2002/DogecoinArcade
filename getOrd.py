@@ -38,10 +38,14 @@ def save_to_file(data_string, mime_type, genesis_txid):
     
     extension = '.bin'  # default to binary if mime type is unknown
     
-    # Guess the file extension based on MIME type
-    guessed_extension = mimetypes.guess_extension(mime_type)
-    if guessed_extension:
-        extension = guessed_extension
+    # Special case for image/webp
+    if mime_type == 'image/webp':
+        extension = '.webp'
+    else:
+        # Guess the file extension based on MIME type
+        guessed_extension = mimetypes.guess_extension(mime_type)
+        if guessed_extension:
+            extension = guessed_extension
     
     # Ensure the content directory exists
     output_dir = './content/'
@@ -54,6 +58,7 @@ def save_to_file(data_string, mime_type, genesis_txid):
         print(f"File saved as {filename}")
     except Exception as e:
         print(f"Error saving file: {e}")
+
 
 
 def process_genesis_tx(asm_data):
