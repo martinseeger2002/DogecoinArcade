@@ -1,8 +1,112 @@
-from flask import Flask, abort, render_template_string, send_file, request
+from flask import Flask, abort, render_template_string, send_file, request, url_for
 import os
 from getOrd import process_tx
 
 app = Flask(__name__)
+
+# HTML content for the landing page
+landing_page_html = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dogecoin Arcade</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: url('{{ url_for('static', filename='splash.webp') }}') no-repeat center center fixed;
+            background-size: cover;
+            font-family: Arial, sans-serif;
+            color: #fff;
+            text-align: center;
+            position: relative;
+        }
+        .container {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            padding: 10px;
+            font-size: 1.2em;
+            border: none;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1.2em;
+            border: none;
+            border-radius: 5px;
+            background-color: #f90;
+            color: #fff;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #e80;
+        }
+        .footer {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            font-size: 1em;
+            background: #fff;
+            color: #000;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .footer a {
+            color: #f90;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to Dogecoin Arcade</h1>
+        <h2>The Gateway to Web Three</h2>
+        <input type="text" id="inscriptionID" placeholder="Enter Inscription ID">
+        <br>
+        <button onclick="submitInscriptionID()">Submit</button>
+    </div>
+    <div class="footer">
+        Created by <a href="https://x.com/MartinSeeger2" target="_blank">Martin Seeger</a> | Donations for development to DCHxodkzaKCLjmnG4LP8uH6NKynmntmCNz
+    </div>
+
+    <script>
+        function submitInscriptionID() {
+            var inscriptionID = document.getElementById('inscriptionID').value;
+            if (inscriptionID) {
+                if (inscriptionID.endsWith('i0')) {
+                    window.location.href = '/content/' + encodeURIComponent(inscriptionID);
+                } else {
+                    window.location.href = '/content/' + encodeURIComponent(inscriptionID) + 'i0';
+                }
+            } else {
+                alert('Please enter an inscription ID');
+            }
+        }
+    </script>
+</body>
+</html>
+'''
+
+@app.route('/')
+def landing_page():
+    return render_template_string(landing_page_html)
 
 @app.route('/content/<file_id>i0')
 def serve_content(file_id):
@@ -50,7 +154,11 @@ def not_found_error(error):
 
     if genesis_txid != 'favicon.ico':
         print(f"404 Error: Processing transaction for genesis_txid: {genesis_txid}")
-        process_tx(genesis_txid, depth=500)
+        try:
+            process_tx(genesis_txid, depth=500)
+        except JSONRPCException as e:
+            print(f"JSONRPCException: {e}")
+            return "Error processing transaction", 500
     else:
         print("404 Error: favicon.ico requested, not processing transaction.")
     
