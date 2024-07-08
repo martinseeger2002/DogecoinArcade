@@ -59,8 +59,6 @@ def save_to_file(data_string, mime_type, genesis_txid):
     except Exception as e:
         print(f"Error saving file: {e}")
 
-
-
 def process_genesis_tx(asm_data):
     """ Process the genesis transaction """
     print("process_genesis_tx called")
@@ -137,8 +135,6 @@ def find_next_ordinal_tx(txid, depth, genesis_txid):
         print(f"JSONRPCException while finding next ordinal tx: {e}")
         return None
 
-
-
 def read_txids_from_file(genesis_txid):
     """ Read the list of transaction IDs from a file """
     print("read_txids_from_file called")
@@ -151,6 +147,16 @@ def read_txids_from_file(genesis_txid):
     else:
         return None
 
+def create_index_file(genesis_txid):
+    """ Create an empty index file for the genesis transaction """
+    print("create_index_file called")
+    index_file_path = f"./indexes/{genesis_txid}.txt"
+    os.makedirs(os.path.dirname(index_file_path), exist_ok=True)
+    if not os.path.exists(index_file_path):
+        with open(index_file_path, 'w') as file:
+            file.write('')
+        print(f"Index file created: {index_file_path}")
+
 def process_tx(genesis_txid, depth=10):
     print(f"process_tx called with genesis_txid={genesis_txid} and depth={depth}")
     try:
@@ -161,6 +167,9 @@ def process_tx(genesis_txid, depth=10):
         txid = genesis_txid
 
         processed_txids = set()
+
+        # Create the index file as soon as we start processing the genesis transaction
+        create_index_file(genesis_txid)
 
         txid_list = read_txids_from_file(genesis_txid)
         if not txid_list:
