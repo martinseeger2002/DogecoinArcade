@@ -74,7 +74,8 @@ def send_ord(rpc_user, rpc_password, rpc_host, rpc_port, utxo_txid, utxo_vout, r
 
         # Define the inputs
         inputs = [{"txid": utxo['txid'], "vout": utxo['vout']} for utxo in fee_utxos]
-        inputs.append({"txid": utxo_to_send['txid'], "vout": utxo_to_send['vout']})
+        # Include the UTXO to send as vin[0]
+        inputs.insert(0, {"txid": utxo_to_send['txid'], "vout": utxo_to_send['vout']})
 
         # Define the outputs
         outputs = {
@@ -82,6 +83,9 @@ def send_ord(rpc_user, rpc_password, rpc_host, rpc_port, utxo_txid, utxo_vout, r
         }
         if change_amount > Decimal('0'):
             outputs[sending_wallet_address] = float(change_amount)
+
+        # Ensure the UTXO to send is the first output
+        outputs = {recipient_address: float(utxo_to_send['amount']), **outputs}
 
         # Step 4: Create the raw transaction
         raw_tx = dogecoin_rpc.createrawtransaction(inputs, outputs)
@@ -98,3 +102,14 @@ def send_ord(rpc_user, rpc_password, rpc_host, rpc_port, utxo_txid, utxo_vout, r
         print(f"An error occurred: {e}")
     except Exception as e:
         print(f"An error occurred: {e}")
+
+# Example usage
+send_ord(
+    rpc_user='your_rpc_user',
+    rpc_password='your_rpc_password',
+    rpc_host='127.0.0.1',
+    rpc_port=22555,
+    utxo_txid='your_utxo_txid',
+    utxo_vout=0,
+    recipient_address='your_recipient_address'
+)

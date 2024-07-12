@@ -35,42 +35,96 @@ class DogecoinRPC:
             print(f"Error retrieving transaction {txid}: {e}")
             return None
 
-    def check_ordinal_in_tx(self, tx):
-        for vin in tx['vin']:
-            if 'scriptSig' in vin and 'asm' in vin['scriptSig']:
-                script_asm = vin['scriptSig']['asm']
-                if "6582895" in script_asm:  # Check for the specific ordinal marker
-                    return True
-        return False
-
-    def trace_ordinal_genesis(self, txid):
-        scanned_txids = set()
-        while txid:
-            if txid in scanned_txids:
-                print(f"Loop detected. TXID {txid} has already been scanned.")
-                return None
-            scanned_txids.add(txid)
-
-            tx = self.get_transaction(txid)
-            if not tx:
-                print(f"Transaction {txid} not found.")
+    def trace_ordinal_genesis(self, txid, output_index=0):
+        def get_previous_tx_output(txid, vout):
+            try:
+                prev_tx = self.rpc_connection.getrawtransaction(txid, True)
+                return prev_tx['vout'][vout]
+            except JSONRPCException as e:
+                print(f"An error occurred: {e}")
                 return None
 
-            if tx['blockheight'] is not None and tx['blockheight'] < BLOCK_HEIGHT_LIMIT:
-                print(f"Reached block height limit. TXID {txid} is in block {tx['blockheight']}.")
+        def get_sigscript_asm(txid, vout):
+            try:
+                prev_tx = self.rpc_connection.getrawtransaction(txid, True)
+                return prev_tx['vin'][vout]['scriptSig']['asm']
+            except IndexError:
+                print("not an ord")
+                return None
+            except JSONRPCException as e:
+                print(f"An error occurred while fetching sigscript asm: {e}")
                 return None
 
-            print(f"Scanning TXID: {txid}")
-            if self.check_ordinal_in_tx(tx):
-                print(f"The ordinal genesis TXID is: {txid}")
-                return txid
+        def process_transaction(txid, output_index):
+            try:
+                transaction = self.rpc_connection.getrawtransaction(txid, True)
+            except JSONRPCException as e:
+                print(f"An error occurred: {e}")
+                return None, None
 
-            if 'vin' not in tx or len(tx['vin']) == 0:
-                break
+            vins = transaction['vin']
+            vouts = transaction['vout']
 
-            txid = tx['vin'][0].get('txid')
-            if not txid:
-                break
+            vin_values = []
+            vin_details = []
+            for vin in vins:
+                prev_tx_output = get_previous_tx_output(vin['txid'], vin['vout'])
+                if prev_tx_output:
+                    vin_values.append(prev_tx_output['value'])
+                    vin_details.append((vin['txid'], vin['vout']))
+                else:
+                    vin_values.append(Decimal('0'))
+                    vin_details.append((vin['txid'], vin['vout']))
+
+            vin_remaining_values = vin_values[:]
+
+            chosen_vout_info = None
+            for vout_index, vout in enumerate(vouts):
+                remaining_value = vout['value']
+                corresponding_vins = []
+                
+                for vin_index, vin_value in enumerate(vin_remaining_values):
+                    if remaining_value > 0 and vin_remaining_values[vin_index] > 0:
+                        if vin_remaining_values[vin_index] >= remaining_value:
+                            vin_remaining_values[vin_index] -= remaining_value
+                            corresponding_vins.append(vin_index)
+                            remaining_value = 0
+                        else:
+                            remaining_value -= vin_remaining_values[vin_index]
+                            corresponding_vins.append(vin_index)
+                            vin_remaining_values[vin_index] = 0
+
+                if vout_index == output_index:
+                    chosen_vout_info = {
+                        "vout_index": vout_index,
+                        "value": vout['value'],
+                        "corresponding_vins": corresponding_vins
+                    }
+
+            if chosen_vout_info and chosen_vout_info['corresponding_vins']:
+                for vin_index in chosen_vout_info['corresponding_vins']:
+                    vin_txid, vout_idx = vin_details[vin_index]
+                    sigscript_asm = get_sigscript_asm(vin_txid, vout_idx)
+                    if sigscript_asm is None:
+                        return None, None
+                    if sigscript_asm.split()[0] == "6582895":
+                        ord_genesis = vin_txid
+                        print(f"Stopping loop as sigscript asm index 0 equals 6582895")
+                        print(f"ord_genesis: {ord_genesis}")
+                        return ord_genesis
+                    print(f"Previous TXID: {vin_txid}, VOUT Index: {vout_idx}, SigScript ASM: {sigscript_asm}")
+                    return vin_txid, vout_idx
+            else:
+                return None, None
+
+        current_txid = txid
+        current_output_index = output_index
+
+        while current_txid is not None:
+            result = process_transaction(current_txid, current_output_index)
+            if isinstance(result, str):  # If result is a genesis txid
+                return result
+            current_txid, current_output_index = result
 
         return None
 
@@ -104,7 +158,7 @@ def create_utxo_files(dogecoin_rpc):
             
             if (utxo['txid'], utxo['vout']) not in existing_txids:
                 print(f"Tracing ordinals for UTXO: {utxo['txid']} with amount {utxo['amount']}")
-                genesis_txid = dogecoin_rpc.trace_ordinal_genesis(utxo['txid'])
+                genesis_txid = dogecoin_rpc.trace_ordinal_genesis(utxo['txid'], utxo['vout'])
 
         utxos_by_address[address].append({
             'txid': utxo['txid'],
@@ -155,7 +209,7 @@ def verify_and_update_utxo_files(dogecoin_rpc):
         if (utxo['txid'], utxo['vout']) not in existing_txids:
             if amount == Decimal('0.001'):
                 print(f"Tracing ordinals for UTXO: {utxo['txid']} with amount {utxo['amount']}")
-                genesis_txid = dogecoin_rpc.trace_ordinal_genesis(utxo['txid'])
+                genesis_txid = dogecoin_rpc.trace_ordinal_genesis(utxo['txid'], utxo['vout'])
         else:
             # If UTXO already exists, use the existing genesis_txid
             existing_utxo = next(

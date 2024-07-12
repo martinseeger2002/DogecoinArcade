@@ -1,6 +1,6 @@
 from flask import Flask, abort, render_template_string, send_file, request, url_for
 import os
-from getOrd import process_tx
+from getOrdContent import process_tx
 
 app = Flask(__name__)
 

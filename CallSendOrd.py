@@ -7,9 +7,9 @@ RPC_HOST = "192.168.68.105"
 RPC_PORT = 22555
 
 # Transaction variables (user input)
-UTXO_TO_SEND_TXID = "c0682f2a153065c36c8d44be803b854cf8c269a73cfd2a7f64f64abd98aa6011"  # txid of the UTXO to send
+UTXO_TO_SEND_TXID = "1334f5ad579bb5b2a2f59168f6e9d5fb3c60e84d0bd169085c6d3004eaa445dc"  # txid of the UTXO to send
 UTXO_TO_SEND_VOUT = 0  # vout of the UTXO to send
-RECIPIENT_ADDRESS = "D5jYAmjRymojMAL2HLZM3n53P3CuPnuBrZ"
+RECIPIENT_ADDRESS = "D62YksrgtpLkBWtb2qgfArSpcUncPbXKbA"
 
 # Call the function
 send_ord(RPC_USER, RPC_PASSWORD, RPC_HOST, RPC_PORT, UTXO_TO_SEND_TXID, UTXO_TO_SEND_VOUT, RECIPIENT_ADDRESS)

@@ -1,6 +1,6 @@
 import json
 import os
-from getOrd import process_tx
+from getOrdContent import process_tx
 
 def file_exists_in_content_folder(file_base_name):
     """Check if a file with the given base name exists in the ./content folder, ignoring the extension."""
