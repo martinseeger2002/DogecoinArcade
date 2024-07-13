@@ -1,13 +1,18 @@
+import configparser
 import json
 import os
 from decimal import Decimal
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 
-# Configuration
-RPC_USER = "your_rpc_user"
-RPC_PASSWORD = "your_rpc_password"
-RPC_HOST = "192.168.68.105"
-RPC_PORT = 22555
+# Load RPC credentials from rpc.conf
+config = configparser.ConfigParser()
+config.read('rpc.conf')
+
+RPC_USER = config.get('rpc', 'user')
+RPC_PASSWORD = config.get('rpc', 'password')
+RPC_HOST = config.get('rpc', 'host')
+RPC_PORT = config.getint('rpc', 'port')
+
 WALLETS_DIR = "./wallets"
 BLOCK_HEIGHT_LIMIT = 4609723  # Define the block height limit for tracing ordinals
 

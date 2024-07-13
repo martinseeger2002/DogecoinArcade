@@ -103,13 +103,4 @@ def send_ord(rpc_user, rpc_password, rpc_host, rpc_port, utxo_txid, utxo_vout, r
     except Exception as e:
         print(f"An error occurred: {e}")
 
-# Example usage
-send_ord(
-    rpc_user='your_rpc_user',
-    rpc_password='your_rpc_password',
-    rpc_host='127.0.0.1',
-    rpc_port=22555,
-    utxo_txid='your_utxo_txid',
-    utxo_vout=0,
-    recipient_address='your_recipient_address'
-)
+
