@@ -51,7 +51,7 @@ def send_ord(rpc_user, rpc_password, rpc_host, rpc_port, utxo_txid, utxo_vout, r
             raise Exception("UTXO to send not found in any wallet")
 
         # Step 2: Estimate the fee rate
-        fee_rate = estimate_fee(4)  # Estimate fee for confirmation within 4 blocks
+        fee_rate = estimate_fee(3)  # Estimate fee for confirmation within 4 blocks
         print(f"Estimated fee rate: {fee_rate} DOGE/kB")
 
         # Calculate the transaction size in bytes (approximation)
