@@ -117,6 +117,12 @@ class DogecoinRPC:
             else:
                 return None, None
 
+        # Check the initial transaction for the genesis sigscript asm
+        initial_sigscript_asm = get_sigscript_asm(txid, output_index)
+        if initial_sigscript_asm and initial_sigscript_asm.split()[0] == "6582895":
+            print(f"Initial transaction {txid} is the genesis transaction.")
+            return txid
+
         current_txid = txid
         current_output_index = output_index
 
