@@ -113,8 +113,26 @@ def process_subsequent_tx(asm_data):
 
     return data_string, False
 
-def find_next_ordinal_tx(txid, depth, genesis_txid):
-    print(f"find_next_ordinal_tx called with txid={txid} and depth={depth}")
+def get_vin_details(txid, vin_index):
+    """ Get the input details of a specific input in a transaction """
+    try:
+        tx_details = rpc_connection.getrawtransaction(txid, True)
+        
+        # Get the specified input (vin) details
+        if vin_index < len(tx_details['vin']):
+            vin = tx_details['vin'][vin_index]
+            previous_txid = vin['txid']
+            vout_index = vin['vout']
+            return previous_txid, vout_index
+        else:
+            print(f"Input index {vin_index} is out of range for transaction {txid}.")
+            return None
+    except JSONRPCException as e:
+        print(f"An error occurred: {e}")
+        return None
+
+def find_next_ordinal_tx(txid, vout_index, depth, genesis_txid):
+    print(f"find_next_ordinal_tx called with txid={txid}, vout_index={vout_index}, and depth={depth}")
     try:
         raw_tx = rpc_connection.getrawtransaction(txid, 1)
         block_hash = raw_tx['blockhash']
@@ -128,16 +146,16 @@ def find_next_ordinal_tx(txid, depth, genesis_txid):
             block = rpc_connection.getblock(block_hash, 2)
             for block_tx in block['tx']:
                 for vin in block_tx['vin']:
-                    if 'txid' in vin and vin['txid'] == txid:
+                    if 'txid' in vin and vin['txid'] == txid and vin['vout'] == vout_index:
                         next_txid = block_tx['txid']
                         print(f"Found next ordinal TX: {next_txid} in block height {current_block_height}")
                         with open(index_file_path, 'a') as file:
                             file.write(next_txid + '\n')
-                        return next_txid
-        return None
+                        return next_txid, vin['vout']
+        return None, None
     except JSONRPCException as e:
         print(f"JSONRPCException while finding next ordinal tx: {e}")
-        return None
+        return None, None
 
 def read_txids_from_file(genesis_txid):
     """ Read the list of transaction IDs from a file """
@@ -171,6 +189,7 @@ def process_tx(genesis_txid, depth=10):
         txid = genesis_txid
 
         processed_txids = set()
+        vout_index = 0
 
         # Create the index file as soon as we start processing the genesis transaction
         create_index_file(genesis_txid)
@@ -215,8 +234,10 @@ def process_tx(genesis_txid, depth=10):
             if num_chunks > 0:
                 if txid_list:
                     txid = txid_list.pop(0)
+                    # Get the correct vout_index for the vin
+                    txid, vout_index = get_vin_details(txid, 0)
                 else:
-                    next_txid = find_next_ordinal_tx(txid, depth, genesis_txid)
+                    next_txid, vout_index = find_next_ordinal_tx(txid, vout_index, depth, genesis_txid)
                     if next_txid:
                         txid = next_txid
                     else:
