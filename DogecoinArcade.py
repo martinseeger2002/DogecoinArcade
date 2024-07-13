@@ -31,13 +31,13 @@ def is_hexadecimal(s):
     hex_pattern = re.compile(r'^[0-9a-fA-F]+$')
     return bool(hex_pattern.fullmatch(s))
 
-def process_task(genesis_txid):
+def process_task(genesis_txid, depth=1000):
     global processing_flag
     try:
         with processing_lock:
             processing_flag = True
         print(f"Starting processing for {genesis_txid}")
-        process_tx(genesis_txid, depth=500)
+        process_tx(genesis_txid, depth)
     except JSONRPCException as e:
         print(f"JSONRPCException: {e}")
     except Exception as e:
@@ -101,6 +101,9 @@ def not_found_error(error):
         print(f"Invalid genesis_txid: {request_path}")
         return "Invalid transaction ID", 400
 
+    with processing_lock:
+        if not processing_flag:
+            thread_pool.submit(process_task, genesis_txid, 1000)
 
     return "Processing ordinal, click refresh when complete", 404
 
