@@ -101,24 +101,12 @@ def not_found_error(error):
         print(f"Invalid genesis_txid: {request_path}")
         return "Invalid transaction ID", 400
 
-    if genesis_txid != 'favicon.ico':
-        print(f"404 Error: Processing transaction for genesis_txid: {genesis_txid}")
-        
-        # Validate genesis_txid
-        if not is_hexadecimal(genesis_txid):
-            print(f"Invalid genesis_txid: {genesis_txid}")
-            return "Invalid transaction ID", 400
-
-        with processing_lock:
-            if processing_flag:
-                return jsonify({"message": "Server is busy processing ordinal. Please try again later."}), 503
-
-        task_queue.put(genesis_txid)
-        thread_pool.submit(process_task, genesis_txid)
-    else:
-        print("404 Error: favicon.ico requested, not processing transaction.")
 
     return "Processing ordinal, click refresh when complete", 404
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_file('favicon.ico', mimetype='image/x-icon')
 
 if __name__ == '__main__':
     app.run(debug=True)
