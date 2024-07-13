@@ -202,7 +202,14 @@ def process_tx(genesis_txid, depth=10):
         while True:
             if txid in processed_txids:
                 print(f"Detected loop, skipping txid {txid}.")
-                break
+                # Move on to the next transaction
+                next_txid, vout_index = find_next_ordinal_tx(txid, vout_index, depth, genesis_txid)
+                if next_txid:
+                    txid = next_txid
+                    continue
+                else:
+                    print(f"End of chain reached, no further ordinals found.")
+                    break
             processed_txids.add(txid)
 
             raw_tx = rpc_connection.getrawtransaction(txid, 1)
