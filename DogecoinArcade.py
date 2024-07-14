@@ -28,14 +28,13 @@ def get_rpc_connection():
 
 def is_hexadecimal(s):
     """Check if the string s is a valid hexadecimal string."""
-    hex_pattern = re.compile(r'^[0-9a-fA-F]+$')
-    return bool(hex_pattern.fullmatch(s))
+    return re.fullmatch(r'^[0-9a-fA-F]+$', s) is not None
 
 def process_task(genesis_txid, depth=1000):
     global processing_flag
+    with processing_lock:
+        processing_flag = True
     try:
-        with processing_lock:
-            processing_flag = True
         print(f"Starting processing for {genesis_txid}")
         process_tx(genesis_txid, depth)
     except JSONRPCException as e:
@@ -61,20 +60,12 @@ def serve_content(file_id):
 
     filename = f"{file_id}"
     content_dir = './content'
-    file_path = None
-    file_extension = None
-
-    # Look for a file with the matching base name
-    for file in os.listdir(content_dir):
-        if file.startswith(filename):
-            file_path = os.path.join(content_dir, file)
-            file_extension = os.path.splitext(file)[1]
-            break
-
+    file_path = next((os.path.join(content_dir, file) for file in os.listdir(content_dir) if file.startswith(filename)), None)
+    
     if file_path and os.path.isfile(file_path):
-        print(f"File found: {file_path}")  # Debug log
+        print(f"File found: {file_path}")
 
-        if file_extension == '.html':
+        if file_path.endswith('.html'):
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     html_content = f.read()
@@ -82,22 +73,21 @@ def serve_content(file_id):
             except Exception as e:
                 print(f"Error reading HTML file: {e}")
                 abort(500)
-        elif file_extension == '.webp':
-            return send_file(file_path, mimetype='image/webp')  # Display .webp file in the browser
+        elif file_path.endswith('.webp'):
+            return send_file(file_path, mimetype='image/webp')
         else:
-            return send_file(file_path)  # For other file types, send the file directly
+            return send_file(file_path)
     else:
-        print(f"File not found: {filename} in {content_dir}")  # Debug log
+        print(f"File not found: {filename} in {content_dir}")
         abort(404)
 
 @app.errorhandler(404)
 def not_found_error(error):
     global processing_flag
-    # Extract the genesis_txid from the request path
     request_path = request.path.split('/')[-1]
-    if request_path.endswith('i0'):
-        genesis_txid = request_path[:-2]  # Remove the trailing 'i0'
-    else:
+    genesis_txid = request_path[:-2] if request_path.endswith('i0') else None
+
+    if not genesis_txid or not is_hexadecimal(genesis_txid):
         print(f"Invalid genesis_txid: {request_path}")
         return "Invalid transaction ID", 400
 
