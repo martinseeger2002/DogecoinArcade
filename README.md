@@ -147,8 +147,3 @@ Example of a wallet JSON file:
     }
 ]
 ```
-
-## Download
-
-You can download the complete project from the following link:
-[Download Dogecoin Arcade Project](https://github.com/martinseeger2002/ADD.git)
