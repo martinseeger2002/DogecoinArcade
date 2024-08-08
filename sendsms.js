@@ -21,7 +21,7 @@ if (process.env.FEE_PER_KB) {
     Transaction.FEE_PER_KB = 100000000
 }
 
-const WALLET_PATH = process.env.WALLET || '.wallet.json'
+const WALLET_PATH = process.env.WALLET || '.smswallet.json'
 
 async function main() {
     let cmd = process.argv[2]
@@ -454,22 +454,27 @@ function inscribe(wallet, address, contentType, data) {
 
 
 function fund(wallet, tx) {
-    tx.change(wallet.address)
-    delete tx._fee
+    const MIN_UTXO_VALUE = 200000; // Minimum UTXO value in satoshis
 
-    for (const utxo of wallet.utxos) {
+    tx.change(wallet.address);
+    delete tx._fee;
+
+    // Filter UTXOs to only include those over the minimum value
+    const eligibleUtxos = wallet.utxos.filter(utxo => utxo.satoshis > MIN_UTXO_VALUE);
+
+    for (const utxo of eligibleUtxos) {
         if (tx.inputs.length && tx.outputs.length && tx.inputAmount >= tx.outputAmount + tx.getFee()) {
-            break
+            break;
         }
 
-        delete tx._fee
-        tx.from(utxo)
-        tx.change(wallet.address)
-        tx.sign(wallet.privkey)
+        delete tx._fee;
+        tx.from(utxo);
+        tx.change(wallet.address);
+        tx.sign(wallet.privkey);
     }
 
     if (tx.inputAmount < tx.outputAmount + tx.getFee()) {
-        throw new Error('not enough funds')
+        throw new Error('not enough funds');
     }
 }
 
