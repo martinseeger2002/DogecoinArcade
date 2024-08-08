@@ -149,4 +149,4 @@ Example of a wallet JSON file:
 ```
 How to send a sms
 ```
-node . sms <address> text/plain; charset=utf-8 <encrypted_plain_text>
+node . sms DC2f4XCWsJ7iZTNLH41S9NsTqH4zqJ19Es text.txt
