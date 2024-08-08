@@ -113,16 +113,11 @@ class DogecoinRPC:
                     if sigscript_asm is None:
                         return None, None
                     asm_first_element = sigscript_asm.split()[0]
-                    if asm_first_element == "6582895":
+                    if asm_first_element in ["6582895", "7564659"]:
                         ord_genesis = vin_txid
-                        print(f"Stopping loop as sigscript asm index 0 equals 6582895")
+                        print(f"Stopping loop as sigscript asm index 0 equals {asm_first_element}")
                         print(f"ord_genesis: {ord_genesis}")
                         return ord_genesis
-                    elif asm_first_element == "7564659":
-                        sms_txid = vin_txid
-                        print(f"Stopping loop as sigscript asm index 0 equals 7564659")
-                        print(f"sms_txid: {sms_txid}")
-                        return None, sms_txid
                     print(f"Previous TXID: {vin_txid}, VOUT Index: {vout_idx}, SigScript ASM: {sigscript_asm}")
                     return vin_txid, vout_idx
             else:
@@ -132,12 +127,9 @@ class DogecoinRPC:
         initial_sigscript_asm = get_sigscript_asm(txid, output_index)
         if initial_sigscript_asm:
             asm_first_element = initial_sigscript_asm.split()[0]
-            if asm_first_element == "6582895":
-                print(f"Initial transaction {txid} is the genesis transaction.")
+            if asm_first_element in ["6582895", "7564659"]:
+                print(f"Initial transaction {txid} contains {asm_first_element}, processing as genesis.")
                 return txid
-            elif asm_first_element == "7564659":
-                print(f"Initial transaction {txid} contains 7564659, setting sms_txid.")
-                return None, txid
 
         current_txid = txid
         current_output_index = output_index
