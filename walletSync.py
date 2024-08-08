@@ -40,7 +40,7 @@ class DogecoinRPC:
             print(f"Error retrieving transaction {txid}: {e}")
             return None
 
-    def trace_ordinal_genesis(self, txid, output_index=0):
+    def trace_ordinal_and_sms(self, txid, output_index=0):
         def get_previous_tx_output(txid, vout):
             try:
                 prev_tx = self.rpc_connection.getrawtransaction(txid, True)
@@ -112,31 +112,37 @@ class DogecoinRPC:
                     sigscript_asm = get_sigscript_asm(vin_txid, vout_idx)
                     if sigscript_asm is None:
                         return None, None
-                    asm_first_element = sigscript_asm.split()[0]
-                    if asm_first_element in ["6582895", "7564659"]:
+                    if sigscript_asm.split()[0] == "6582895":
                         ord_genesis = vin_txid
-                        print(f"Stopping loop as sigscript asm index 0 equals {asm_first_element}")
+                        print(f"Stopping loop as sigscript asm index 0 equals 6582895")
                         print(f"ord_genesis: {ord_genesis}")
-                        return ord_genesis
+                        return {"genesis_txid": ord_genesis}
+                    elif sigscript_asm.split()[0] == "7564659":
+                        sms_txid = vin_txid
+                        print(f"Stopping loop as sigscript asm index 0 equals 7564659")
+                        print(f"sms_txid: {sms_txid}")
+                        return {"sms_txid": sms_txid}
                     print(f"Previous TXID: {vin_txid}, VOUT Index: {vout_idx}, SigScript ASM: {sigscript_asm}")
                     return vin_txid, vout_idx
             else:
                 return None, None
 
-        # Check the initial transaction for the genesis sigscript asm
+        # Check the initial transaction for the genesis sigscript asm or sms sigscript asm
         initial_sigscript_asm = get_sigscript_asm(txid, output_index)
         if initial_sigscript_asm:
-            asm_first_element = initial_sigscript_asm.split()[0]
-            if asm_first_element in ["6582895", "7564659"]:
-                print(f"Initial transaction {txid} contains {asm_first_element}, processing as genesis.")
-                return txid
+            if initial_sigscript_asm.split()[0] == "6582895":
+                print(f"Initial transaction {txid} is the genesis transaction.")
+                return {"genesis_txid": txid}
+            elif initial_sigscript_asm.split()[0] == "7564659":
+                print(f"Initial transaction {txid} is the sms transaction.")
+                return {"sms_txid": txid}
 
         current_txid = txid
         current_output_index = output_index
 
         while current_txid is not None:
             result = process_transaction(current_txid, current_output_index)
-            if isinstance(result, str):  # If result is a genesis txid
+            if isinstance(result, dict):  # If result is a dict containing genesis_txid or sms_txid
                 return result
             current_txid, current_output_index = result
 
@@ -164,8 +170,8 @@ def create_utxo_files(dogecoin_rpc):
             utxos_by_address[address] = []
         amount = Decimal(utxo['amount'])
         genesis_txid = "not an ord"
-        sms_txid = None
-
+        sms_txid = "not an sms"
+        
         if amount == Decimal('0.001'):
             filename = os.path.join(WALLETS_DIR, f"{address}.json")
             existing_utxos = read_existing_utxos(filename)
@@ -173,23 +179,21 @@ def create_utxo_files(dogecoin_rpc):
             
             if (utxo['txid'], utxo['vout']) not in existing_txids:
                 print(f"Tracing ordinals for UTXO: {utxo['txid']} with amount {utxo['amount']}")
-                result = dogecoin_rpc.trace_ordinal_genesis(utxo['txid'], utxo['vout'])
-                if isinstance(result, str):
-                    genesis_txid = result
-                else:
-                    genesis_txid, sms_txid = result
+                trace_result = dogecoin_rpc.trace_ordinal_and_sms(utxo['txid'], utxo['vout'])
+                if trace_result:
+                    sms_txid = trace_result.get("sms_txid", sms_txid)
+                    if sms_txid != "not an sms":
+                        genesis_txid = "encrypted message"
+                    else:
+                        genesis_txid = trace_result.get("genesis_txid", genesis_txid)
 
-        utxo_entry = {
+        utxos_by_address[address].append({
             'txid': utxo['txid'],
             'vout': utxo['vout'],
             'amount': float(amount),  # Convert Decimal to float
-            'genesis_txid': genesis_txid
-        }
-
-        if sms_txid:
-            utxo_entry['sms_txid'] = sms_txid
-
-        utxos_by_address[address].append(utxo_entry)
+            'genesis_txid': genesis_txid,
+            'sms_txid': sms_txid
+        })
 
     # Ensure the wallets directory exists
     if not os.path.exists(WALLETS_DIR):
@@ -205,8 +209,8 @@ def create_utxo_files(dogecoin_rpc):
         for utxo in new_utxos:
             if (utxo['txid'], utxo['vout']) in existing_utxos_dict:
                 # Preserve the existing genesis_txid and sms_txid
-                utxo['genesis_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('genesis_txid', utxo['genesis_txid'])
-                utxo['sms_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sms_txid', utxo.get('sms_txid'))
+                utxo['genesis_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('genesis_txid', genesis_txid)
+                utxo['sms_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sms_txid', sms_txid)
             existing_utxos_dict[(utxo['txid'], utxo['vout'])] = utxo
         merged_utxos = list(existing_utxos_dict.values())
 
@@ -226,7 +230,7 @@ def verify_and_update_utxo_files(dogecoin_rpc):
             utxos_by_address[address] = []
         amount = Decimal(utxo['amount'])
         genesis_txid = "not an ord"
-        sms_txid = None
+        sms_txid = "not an sms"
 
         filename = os.path.join(WALLETS_DIR, f"{address}.json")
         existing_utxos = read_existing_utxos(filename)
@@ -235,11 +239,10 @@ def verify_and_update_utxo_files(dogecoin_rpc):
         if (utxo['txid'], utxo['vout']) not in existing_txids:
             if amount == Decimal('0.001'):
                 print(f"Tracing ordinals for UTXO: {utxo['txid']} with amount {utxo['amount']}")
-                result = dogecoin_rpc.trace_ordinal_genesis(utxo['txid'], utxo['vout'])
-                if isinstance(result, str):
-                    genesis_txid = result
-                else:
-                    genesis_txid, sms_txid = result
+                trace_result = dogecoin_rpc.trace_ordinal_and_sms(utxo['txid'], utxo['vout'])
+                if trace_result:
+                    genesis_txid = trace_result.get("genesis_txid", genesis_txid)
+                    sms_txid = trace_result.get("sms_txid", sms_txid)
         else:
             # If UTXO already exists, use the existing genesis_txid and sms_txid
             existing_utxo = next(
@@ -247,20 +250,16 @@ def verify_and_update_utxo_files(dogecoin_rpc):
                 None
             )
             if existing_utxo:
-                genesis_txid = existing_utxo.get('genesis_txid', genesis_txid)
-                sms_txid = existing_utxo.get('sms_txid', sms_txid)
+                genesis_txid = existing_utxo['genesis_txid']
+                sms_txid = existing_utxo['sms_txid']
 
-        utxo_entry = {
+        utxos_by_address[address].append({
             'txid': utxo['txid'],
             'vout': utxo['vout'],
             'amount': float(amount),  # Convert Decimal to float
-            'genesis_txid': genesis_txid
-        }
-
-        if sms_txid:
-            utxo_entry['sms_txid'] = sms_txid
-
-        utxos_by_address[address].append(utxo_entry)
+            'genesis_txid': genesis_txid,
+            'sms_txid': sms_txid
+        })
 
     # Iterate over each JSON file in the wallets directory
     for filename in os.listdir(WALLETS_DIR):
