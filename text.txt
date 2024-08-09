@@ -1,1 +1,2 @@
-Put encrypted message here.
+"MimeType": "image/png",
+"EncryptedData": ""
