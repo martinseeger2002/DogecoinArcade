@@ -18,7 +18,22 @@ BLOCK_HEIGHT_LIMIT = 4609723  # Define the block height limit for tracing ordina
 
 class DogecoinRPC:
     def __init__(self, rpc_user, rpc_password, rpc_host='localhost', rpc_port=22555):
-        self.rpc_connection = AuthServiceProxy(f"http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}")
+        self.rpc_user = rpc_user
+        self.rpc_password = rpc_password
+        self.rpc_host = rpc_host
+        self.rpc_port = rpc_port
+        self.rpc_connection = None
+        self.connect()
+
+    def connect(self):
+        self.rpc_connection = AuthServiceProxy(f"http://{self.rpc_user}:{self.rpc_password}@{self.rpc_host}:{self.rpc_port}")
+
+    def disconnect(self):
+        self.rpc_connection = None
+
+    def reconnect(self):
+        self.disconnect()
+        self.connect()
 
     def list_unspent(self):
         try:
@@ -195,6 +210,9 @@ def create_utxo_files(dogecoin_rpc):
             'sms_txid': sms_txid
         })
 
+        # Reconnect after processing each UTXO
+        dogecoin_rpc.reconnect()
+
     # Ensure the wallets directory exists
     if not os.path.exists(WALLETS_DIR):
         os.makedirs(WALLETS_DIR)
@@ -260,6 +278,9 @@ def verify_and_update_utxo_files(dogecoin_rpc):
             'genesis_txid': genesis_txid,
             'sms_txid': sms_txid
         })
+
+        # Reconnect after processing each UTXO
+        dogecoin_rpc.reconnect()
 
     # Iterate over each JSON file in the wallets directory
     for filename in os.listdir(WALLETS_DIR):
