@@ -1,6 +1,6 @@
 import json
 import os
-from getOrdContent import process_tx
+from getSmsContent import process_tx
 
 def file_exists_in_content_folder(file_base_name):
     """Check if a file with the given base name exists in the ./smscontent folder, ignoring the extension."""
