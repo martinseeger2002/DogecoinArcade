@@ -1,5 +1,6 @@
 import base64
 import os
+import mimetypes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -53,9 +54,15 @@ def encrypt_data(pubkey_hex, data):
     encrypted_data = encrypt_data_with_aes(aes_key, data)
     return base64.b64encode(encrypted_aes_key + encrypted_data)
 
-def save_encrypted_data(encrypted_data, filepath):
+def save_encrypted_data_to_json(encrypted_data, mimetype, filepath):
+    timestamp = datetime.datetime.now().isoformat()
+    sms_data = {
+        "timestamp": timestamp,
+        "mimetype": mimetype,
+        "encrypted_data": encrypted_data.decode()
+    }
     with open(filepath, 'w') as file:
-        file.write(encrypted_data.decode())  # Save only the encrypted data
+        json.dump(sms_data, file, indent=4)
     print(f"Encrypted data saved to {filepath}")
 
 def mint_sms(wallet_address, filepath):
@@ -64,9 +71,7 @@ def mint_sms(wallet_address, filepath):
                                 capture_output=True, text=True, check=True)
         if result.returncode == 0:
             output_lines = result.stdout.strip().splitlines()
-            # Assuming the txid is always in the last line of the output
             txid_line = output_lines[-1]
-            # Extract the actual txid value from the line
             txid = txid_line.split("inscription txid: ")[-1]
             print(f"SMS sent successfully with txid: {txid}")
             return txid
@@ -77,19 +82,18 @@ def mint_sms(wallet_address, filepath):
         print(f"Error: {e.stderr.strip()}")
         return None
 
-def log_transaction(txid, wallet_address, pubkey_hex, original_data, filepath):
+def log_transaction(txid, wallet_address, pubkey_hex, original_data, mimetype, filepath):
     log_entry = {
         "txid": txid,
         "wallet_address": wallet_address,
         "pubkey": pubkey_hex,
         "original_data": original_data,
+        "mimetype": mimetype,
         "timestamp": datetime.datetime.now().isoformat()
     }
-    # Update the log location to the /sms/ folder
     script_dir = os.path.dirname(os.path.realpath(__file__))
     log_filepath = os.path.join(script_dir, 'sms', 'sent_log.json')
     
-    # Ensure the sms directory exists
     os.makedirs(os.path.dirname(log_filepath), exist_ok=True)
     
     if os.path.exists(log_filepath):
@@ -105,20 +109,42 @@ def log_transaction(txid, wallet_address, pubkey_hex, original_data, filepath):
 
 def main():
     pubkey_hex = input("Enter the Bitcoin public key (hex): ")
-    original_data = input("Enter the data to encrypt: ")
-    encrypted_data = encrypt_data(pubkey_hex, original_data.encode())
+    choice = input("Do you want to send a 'text' or a 'file'? ").strip().lower()
     
-    # Ensure the directory exists and save the encrypted data
-    script_dir = os.path.dirname(os.path.realpath(__file__))  # Get the current script's directory
-    output_filepath = os.path.join(script_dir, 'text.txt')  # Save to text.txt in the current directory
+    if choice == 'text':
+        original_data = input("Enter the text to encrypt: ")
+        mimetype = "text/plain"
+        data_to_encrypt = original_data.encode()
+    elif choice == 'file':
+        filename = input("Enter the filename (located in the 'files' directory): ").strip()
+        filepath = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'files', filename)
+        
+        with open(filepath, 'rb') as file:
+            original_data = filename
+            file_data = file.read()
+            data_to_encrypt = base64.b64encode(file_data)
+            
+            # Detect MIME type, specifically handling .webp extension
+            if filename.endswith('.webp'):
+                mimetype = 'image/webp'
+            else:
+                mimetype = mimetypes.guess_type(filepath)[0] or 'application/octet-stream'
+    else:
+        print("Invalid choice. Please enter 'text' or 'file'.")
+        return
+
+    encrypted_data = encrypt_data(pubkey_hex, data_to_encrypt)
     
-    save_encrypted_data(encrypted_data, output_filepath)
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    output_filepath = os.path.join(script_dir, 'SMS.json')
+    
+    save_encrypted_data_to_json(encrypted_data, mimetype, output_filepath)
     
     wallet_address = input("Enter the Dogecoin wallet address to send the message: ")
     txid = mint_sms(wallet_address, output_filepath)
     
     if txid:
-        log_transaction(txid, wallet_address, pubkey_hex, original_data, output_filepath)
+        log_transaction(txid, wallet_address, pubkey_hex, original_data, mimetype, output_filepath)
 
 if __name__ == "__main__":
     main()
