@@ -1,7 +1,9 @@
 import configparser
 import json
 import os
+import time
 from decimal import Decimal
+from datetime import datetime
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 
 # Load RPC credentials from rpc.conf
@@ -47,39 +49,49 @@ class DogecoinRPC:
             tx = self.rpc_connection.getrawtransaction(txid, True)
             if 'blockhash' in tx:
                 block = self.rpc_connection.getblock(tx['blockhash'])
-                tx['blockheight'] = block['height']
+                tx['blocktime'] = block['time']  # Add block time (timestamp)
             else:
-                tx['blockheight'] = None
+                tx['blocktime'] = None
             return tx
         except JSONRPCException as e:
             print(f"Error retrieving transaction {txid}: {e}")
             return None
 
+    def get_previous_tx_output(self, txid, vout):
+        try:
+            prev_tx = self.get_transaction(txid)
+            return prev_tx['vout'][vout] if prev_tx else None
+        except JSONRPCException as e:
+            print(f"An error occurred: {e}")
+            return None
+
+    def get_change_address(self, txid):
+        try:
+            prev_tx = self.get_transaction(txid)
+            if prev_tx and len(prev_tx['vout']) > 1:
+                output = prev_tx['vout'][1]
+                if 'scriptPubKey' in output and 'addresses' in output['scriptPubKey']:
+                    return output['scriptPubKey']['addresses'][0]
+            return None
+        except JSONRPCException as e:
+            print(f"An error occurred: {e}")
+            return None
+
+    def get_sigscript_asm(self, txid, vout):
+        try:
+            prev_tx = self.get_transaction(txid)
+            return prev_tx['vin'][vout]['scriptSig']['asm'] if prev_tx else None
+        except IndexError:
+            print("Not an ord")
+            return None
+        except JSONRPCException as e:
+            print(f"An error occurred while fetching sigscript asm: {e}")
+            return None
+
     def trace_ordinal_and_sms(self, txid, output_index=0):
-        def get_previous_tx_output(txid, vout):
-            try:
-                prev_tx = self.rpc_connection.getrawtransaction(txid, True)
-                return prev_tx['vout'][vout]
-            except JSONRPCException as e:
-                print(f"An error occurred: {e}")
-                return None
-
-        def get_sigscript_asm(txid, vout):
-            try:
-                prev_tx = self.rpc_connection.getrawtransaction(txid, True)
-                return prev_tx['vin'][vout]['scriptSig']['asm']
-            except IndexError:
-                print("not an ord")
-                return None
-            except JSONRPCException as e:
-                print(f"An error occurred while fetching sigscript asm: {e}")
-                return None
-
         def process_transaction(txid, output_index):
-            try:
-                transaction = self.rpc_connection.getrawtransaction(txid, True)
-            except JSONRPCException as e:
-                print(f"An error occurred: {e}")
+            transaction = self.get_transaction(txid)
+            if not transaction:
                 return None, None
 
             vins = transaction['vin']
@@ -88,13 +100,14 @@ class DogecoinRPC:
             vin_values = []
             vin_details = []
             for vin in vins:
-                prev_tx_output = get_previous_tx_output(vin['txid'], vin['vout'])
+                prev_tx_output = self.get_previous_tx_output(vin['txid'], vin['vout'])
                 if prev_tx_output:
                     vin_values.append(prev_tx_output['value'])
-                    vin_details.append((vin['txid'], vin['vout']))
+                    change_address = self.get_change_address(vin['txid'])
+                    vin_details.append((vin['txid'], vin['vout'], change_address))
                 else:
                     vin_values.append(Decimal('0'))
-                    vin_details.append((vin['txid'], vin['vout']))
+                    vin_details.append((vin['txid'], vin['vout'], 'Unknown'))
 
             vin_remaining_values = vin_values[:]
 
@@ -123,34 +136,35 @@ class DogecoinRPC:
 
             if chosen_vout_info and chosen_vout_info['corresponding_vins']:
                 for vin_index in chosen_vout_info['corresponding_vins']:
-                    vin_txid, vout_idx = vin_details[vin_index]
-                    sigscript_asm = get_sigscript_asm(vin_txid, vout_idx)
+                    vin_txid, vout_idx, change_address = vin_details[vin_index]
+                    sigscript_asm = self.get_sigscript_asm(vin_txid, vout_idx)
                     if sigscript_asm is None:
                         return None, None
                     if sigscript_asm.split()[0] == "6582895":
                         ord_genesis = vin_txid
                         print(f"Stopping loop as sigscript asm index 0 equals 6582895")
                         print(f"ord_genesis: {ord_genesis}")
-                        return {"genesis_txid": ord_genesis}
+                        return {"genesis_txid": ord_genesis, "change_address": change_address}
                     elif sigscript_asm.split()[0] == "7564659":
                         sms_txid = vin_txid
                         print(f"Stopping loop as sigscript asm index 0 equals 7564659")
                         print(f"sms_txid: {sms_txid}")
-                        return {"sms_txid": sms_txid}
+                        return {"sms_txid": sms_txid, "change_address": change_address}
                     print(f"Previous TXID: {vin_txid}, VOUT Index: {vout_idx}, SigScript ASM: {sigscript_asm}")
                     return vin_txid, vout_idx
             else:
                 return None, None
 
         # Check the initial transaction for the genesis sigscript asm or sms sigscript asm
-        initial_sigscript_asm = get_sigscript_asm(txid, output_index)
+        initial_sigscript_asm = self.get_sigscript_asm(txid, output_index)
         if initial_sigscript_asm:
+            change_address = self.get_change_address(txid)
             if initial_sigscript_asm.split()[0] == "6582895":
                 print(f"Initial transaction {txid} is the genesis transaction.")
-                return {"genesis_txid": txid}
+                return {"genesis_txid": txid, "change_address": change_address}
             elif initial_sigscript_asm.split()[0] == "7564659":
                 print(f"Initial transaction {txid} is the sms transaction.")
-                return {"sms_txid": txid}
+                return {"sms_txid": txid, "change_address": change_address}
 
         current_txid = txid
         current_output_index = output_index
@@ -174,151 +188,77 @@ def read_existing_utxos(filename):
             return json.load(f)
     return []
 
-def create_utxo_files(dogecoin_rpc):
-    utxos = dogecoin_rpc.list_unspent()
-    utxos_by_address = {}
+def process_wallet_utxos(dogecoin_rpc, address):
+    filename = os.path.join(WALLETS_DIR, f"{address}.json")
+    existing_utxos = read_existing_utxos(filename)
+    existing_txids = {(existing_utxo['txid'], existing_utxo['vout']) for existing_utxo in existing_utxos}
 
-    # Group UTXOs by address
+    utxos = dogecoin_rpc.list_unspent()
+
+    new_utxos = []
     for utxo in utxos:
-        address = utxo['address']
-        if address not in utxos_by_address:
-            utxos_by_address[address] = []
-        amount = Decimal(utxo['amount'])
-        genesis_txid = "not an ord"
-        sms_txid = "not an sms"
-        
-        if amount == Decimal('0.001'):
-            filename = os.path.join(WALLETS_DIR, f"{address}.json")
-            existing_utxos = read_existing_utxos(filename)
-            existing_txids = {(existing_utxo['txid'], existing_utxo['vout']) for existing_utxo in existing_utxos}
-            
+        if utxo['address'] == address:
+            amount = Decimal(utxo['amount'])
+            genesis_txid = "not an ord"
+            sms_txid = "not an sms"
+            timestamp = None
+            change_address = None
+
             if (utxo['txid'], utxo['vout']) not in existing_txids:
-                print(f"Tracing ordinals for UTXO: {utxo['txid']} with amount {utxo['amount']}")
-                trace_result = dogecoin_rpc.trace_ordinal_and_sms(utxo['txid'], utxo['vout'])
-                if trace_result:
-                    sms_txid = trace_result.get("sms_txid", sms_txid)
-                    if sms_txid != "not an sms":
-                        genesis_txid = "encrypted message"
-                    else:
-                        genesis_txid = trace_result.get("genesis_txid", genesis_txid)
+                if amount == Decimal('0.001'):
+                    print(f"Tracing ordinals for UTXO: {utxo['txid']} with amount {utxo['amount']}")
+                    trace_result = dogecoin_rpc.trace_ordinal_and_sms(utxo['txid'], utxo['vout'])
+                    if trace_result:
+                        sms_txid = trace_result.get("sms_txid", sms_txid)
+                        change_address = trace_result.get("change_address", change_address)
+                        if sms_txid != "not an sms":
+                            genesis_txid = "encrypted message"
+                        else:
+                            genesis_txid = trace_result.get("genesis_txid", genesis_txid)
 
-        utxos_by_address[address].append({
-            'txid': utxo['txid'],
-            'vout': utxo['vout'],
-            'amount': float(amount),  # Convert Decimal to float
-            'genesis_txid': genesis_txid,
-            'sms_txid': sms_txid
-        })
+                # Get the timestamp from the block and convert it to a readable format
+                tx_details = dogecoin_rpc.get_transaction(utxo['txid'])
+                if tx_details and 'blocktime' in tx_details:
+                    timestamp = datetime.utcfromtimestamp(tx_details['blocktime']).strftime('%Y-%m-%d %H:%M:%S')
 
-        # Reconnect after processing each UTXO
-        dogecoin_rpc.reconnect()
+            new_utxos.append({
+                'txid': utxo['txid'],
+                'vout': utxo['vout'],
+                'amount': float(amount),  # Convert Decimal to float
+                'genesis_txid': genesis_txid,
+                'sms_txid': sms_txid,
+                'timestamp': timestamp,
+                'change_address': change_address
+            })
 
-    # Ensure the wallets directory exists
-    if not os.path.exists(WALLETS_DIR):
-        os.makedirs(WALLETS_DIR)
+            # Reconnect after processing each UTXO
+            dogecoin_rpc.reconnect()
 
-    # Create or update a JSON file for each address in the wallets directory
-    for address, new_utxos in utxos_by_address.items():
-        filename = os.path.join(WALLETS_DIR, f"{address}.json")
-        existing_utxos = read_existing_utxos(filename)
+    # Merge new UTXOs with existing UTXOs
+    existing_utxos_dict = {(existing_utxo['txid'], existing_utxo['vout']): existing_utxo for existing_utxo in existing_utxos}
+    for utxo in new_utxos:
+        if (utxo['txid'], utxo['vout']) in existing_utxos_dict:
+            # Preserve the existing genesis_txid and sms_txid
+            utxo['genesis_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('genesis_txid', utxo['genesis_txid'])
+            utxo['sms_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sms_txid', utxo['sms_txid'])
+            utxo['timestamp'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('timestamp', utxo['timestamp'])
+            utxo['change_address'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('change_address', utxo['change_address'])
+        existing_utxos_dict[(utxo['txid'], utxo['vout'])] = utxo
+    merged_utxos = list(existing_utxos_dict.values())
 
-        # Merge new UTXOs with existing UTXOs
-        existing_utxos_dict = {(existing_utxo['txid'], existing_utxo['vout']): existing_utxo for existing_utxo in existing_utxos}
-        for utxo in new_utxos:
-            if (utxo['txid'], utxo['vout']) in existing_utxos_dict:
-                # Preserve the existing genesis_txid and sms_txid
-                utxo['genesis_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('genesis_txid', genesis_txid)
-                utxo['sms_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sms_txid', sms_txid)
-            existing_utxos_dict[(utxo['txid'], utxo['vout'])] = utxo
-        merged_utxos = list(existing_utxos_dict.values())
+    # Write the merged UTXOs back to the file
+    with open(filename, 'w') as f:
+        json.dump(merged_utxos, f, indent=4)
+    print(f"Created or updated file {filename} with UTXOs for address {address}")
 
-        # Write the merged UTXOs back to the file
-        with open(filename, 'w') as f:
-            json.dump(merged_utxos, f, indent=4)
-        print(f"Created or updated file {filename} with UTXOs for address {address}")
-
-def verify_and_update_utxo_files(dogecoin_rpc):
-    utxos = dogecoin_rpc.list_unspent()
-    utxos_by_address = {}
-
-    # Group UTXOs by address
-    for utxo in utxos:
-        address = utxo['address']
-        if address not in utxos_by_address:
-            utxos_by_address[address] = []
-        amount = Decimal(utxo['amount'])
-        genesis_txid = "not an ord"
-        sms_txid = "not an sms"
-
-        filename = os.path.join(WALLETS_DIR, f"{address}.json")
-        existing_utxos = read_existing_utxos(filename)
-        existing_txids = {(existing_utxo['txid'], existing_utxo['vout']) for existing_utxo in existing_utxos}
-
-        if (utxo['txid'], utxo['vout']) not in existing_txids:
-            if amount == Decimal('0.001'):
-                print(f"Tracing ordinals for UTXO: {utxo['txid']} with amount {utxo['amount']}")
-                trace_result = dogecoin_rpc.trace_ordinal_and_sms(utxo['txid'], utxo['vout'])
-                if trace_result:
-                    genesis_txid = trace_result.get("genesis_txid", genesis_txid)
-                    sms_txid = trace_result.get("sms_txid", sms_txid)
-        else:
-            # If UTXO already exists, use the existing genesis_txid and sms_txid
-            existing_utxo = next(
-                (existing_utxo for existing_utxo in existing_utxos if existing_utxo['txid'] == utxo['txid'] and existing_utxo['vout'] == utxo['vout']),
-                None
-            )
-            if existing_utxo:
-                genesis_txid = existing_utxo['genesis_txid']
-                sms_txid = existing_utxo['sms_txid']
-
-        utxos_by_address[address].append({
-            'txid': utxo['txid'],
-            'vout': utxo['vout'],
-            'amount': float(amount),  # Convert Decimal to float
-            'genesis_txid': genesis_txid,
-            'sms_txid': sms_txid
-        })
-
-        # Reconnect after processing each UTXO
-        dogecoin_rpc.reconnect()
-
-    # Iterate over each JSON file in the wallets directory
-    for filename in os.listdir(WALLETS_DIR):
-        if filename.endswith(".json"):
-            file_path = os.path.join(WALLETS_DIR, filename)
-            existing_utxos = read_existing_utxos(file_path)
-
-            # Extract the address from the filename
-            address = os.path.splitext(filename)[0]
-
-            # Verify each UTXO in the JSON file
-            updated_utxos = [
-                utxo for utxo in existing_utxos
-                if (utxo['txid'], utxo['vout']) in {(utxo['txid'], utxo['vout']) for utxo in utxos_by_address.get(address, [])}
-            ]
-
-            # Add new UTXOs if they are not already in the file
-            existing_utxos_dict = {(existing_utxo['txid'], existing_utxo['vout']): existing_utxo for existing_utxo in updated_utxos}
-            for utxo in utxos_by_address.get(address, []):
-                if (utxo['txid'], utxo['vout']) not in existing_utxos_dict:
-                    existing_utxos_dict[(utxo['txid'], utxo['vout'])] = utxo
-
-            # Save the updated UTXO list back to the JSON file
-            with open(file_path, 'w') as f:
-                json.dump(list(existing_utxos_dict.values()), f, indent=4)
-
-            print(f"Updated file {file_path}: {len(existing_utxos)} -> {len(list(existing_utxos_dict.values()))} UTXOs")
+def process_all_wallets(dogecoin_rpc):
+    addresses = list_wallet_addresses(dogecoin_rpc)
+    for address in addresses:
+        print(f"Processing UTXOs for address: {address}")
+        process_wallet_utxos(dogecoin_rpc, address)
 
 if __name__ == "__main__":
     dogecoin_rpc = DogecoinRPC(RPC_USER, RPC_PASSWORD, RPC_HOST, RPC_PORT)
 
-    print("Listing public addresses from the default wallet:")
-    addresses = list_wallet_addresses(dogecoin_rpc)
-    for address in addresses:
-        print(f"Address: {address}")
-
-    print("\nCreating UTXO files for each address:")
-    create_utxo_files(dogecoin_rpc)
-
-    print("\nVerifying and updating UTXO files:")
-    verify_and_update_utxo_files(dogecoin_rpc)
+    print("\nProcessing all wallets sequentially:")
+    process_all_wallets(dogecoin_rpc)
