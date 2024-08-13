@@ -65,7 +65,7 @@ class DogecoinRPC:
             print(f"An error occurred: {e}")
             return None
 
-    def get_change_address(self, txid):
+    def get_sender_address(self, txid):
         try:
             prev_tx = self.get_transaction(txid)
             if prev_tx and len(prev_tx['vout']) > 1:
@@ -103,8 +103,8 @@ class DogecoinRPC:
                 prev_tx_output = self.get_previous_tx_output(vin['txid'], vin['vout'])
                 if prev_tx_output:
                     vin_values.append(prev_tx_output['value'])
-                    change_address = self.get_change_address(vin['txid'])
-                    vin_details.append((vin['txid'], vin['vout'], change_address))
+                    sender_address = self.get_sender_address(vin['txid'])
+                    vin_details.append((vin['txid'], vin['vout'], sender_address))
                 else:
                     vin_values.append(Decimal('0'))
                     vin_details.append((vin['txid'], vin['vout'], 'Unknown'))
@@ -136,7 +136,7 @@ class DogecoinRPC:
 
             if chosen_vout_info and chosen_vout_info['corresponding_vins']:
                 for vin_index in chosen_vout_info['corresponding_vins']:
-                    vin_txid, vout_idx, change_address = vin_details[vin_index]
+                    vin_txid, vout_idx, sender_address = vin_details[vin_index]
                     sigscript_asm = self.get_sigscript_asm(vin_txid, vout_idx)
                     if sigscript_asm is None:
                         return None, None
@@ -144,12 +144,12 @@ class DogecoinRPC:
                         ord_genesis = vin_txid
                         print(f"Stopping loop as sigscript asm index 0 equals 6582895")
                         print(f"ord_genesis: {ord_genesis}")
-                        return {"genesis_txid": ord_genesis, "change_address": change_address}
+                        return {"genesis_txid": ord_genesis, "sender_address": sender_address}
                     elif sigscript_asm.split()[0] == "7564659":
                         sms_txid = vin_txid
                         print(f"Stopping loop as sigscript asm index 0 equals 7564659")
                         print(f"sms_txid: {sms_txid}")
-                        return {"sms_txid": sms_txid, "change_address": change_address}
+                        return {"sms_txid": sms_txid, "sender_address": sender_address}
                     print(f"Previous TXID: {vin_txid}, VOUT Index: {vout_idx}, SigScript ASM: {sigscript_asm}")
                     return vin_txid, vout_idx
             else:
@@ -158,13 +158,13 @@ class DogecoinRPC:
         # Check the initial transaction for the genesis sigscript asm or sms sigscript asm
         initial_sigscript_asm = self.get_sigscript_asm(txid, output_index)
         if initial_sigscript_asm:
-            change_address = self.get_change_address(txid)
+            sender_address = self.get_sender_address(txid)
             if initial_sigscript_asm.split()[0] == "6582895":
                 print(f"Initial transaction {txid} is the genesis transaction.")
-                return {"genesis_txid": txid, "change_address": change_address}
+                return {"genesis_txid": txid, "sender_address": sender_address}
             elif initial_sigscript_asm.split()[0] == "7564659":
                 print(f"Initial transaction {txid} is the sms transaction.")
-                return {"sms_txid": txid, "change_address": change_address}
+                return {"sms_txid": txid, "sender_address": sender_address}
 
         current_txid = txid
         current_output_index = output_index
@@ -202,7 +202,7 @@ def process_wallet_utxos(dogecoin_rpc, address):
             genesis_txid = "not an ord"
             sms_txid = "not an sms"
             timestamp = None
-            change_address = None
+            sender_address = None
 
             if (utxo['txid'], utxo['vout']) not in existing_txids:
                 if amount == Decimal('0.001'):
@@ -210,7 +210,7 @@ def process_wallet_utxos(dogecoin_rpc, address):
                     trace_result = dogecoin_rpc.trace_ordinal_and_sms(utxo['txid'], utxo['vout'])
                     if trace_result:
                         sms_txid = trace_result.get("sms_txid", sms_txid)
-                        change_address = trace_result.get("change_address", change_address)
+                        sender_address = trace_result.get("sender_address", sender_address)
                         if sms_txid != "not an sms":
                             genesis_txid = "encrypted message"
                         else:
@@ -228,7 +228,7 @@ def process_wallet_utxos(dogecoin_rpc, address):
                 'genesis_txid': genesis_txid,
                 'sms_txid': sms_txid,
                 'timestamp': timestamp,
-                'change_address': change_address
+                'sender_address': sender_address
             })
 
             # Reconnect after processing each UTXO
@@ -242,7 +242,7 @@ def process_wallet_utxos(dogecoin_rpc, address):
             utxo['genesis_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('genesis_txid', utxo['genesis_txid'])
             utxo['sms_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sms_txid', utxo['sms_txid'])
             utxo['timestamp'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('timestamp', utxo['timestamp'])
-            utxo['change_address'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('change_address', utxo['change_address'])
+            utxo['sender_address'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sender_address', utxo['sender_address'])
         existing_utxos_dict[(utxo['txid'], utxo['vout'])] = utxo
     merged_utxos = list(existing_utxos_dict.values())
 
