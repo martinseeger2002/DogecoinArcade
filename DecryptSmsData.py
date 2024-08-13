@@ -9,7 +9,7 @@ from cryptography.hazmat.backends import default_backend
 import os
 import mimetypes
 
-def load_private_key_from_wallet(wallet_path="./.wallet.json"):
+def load_private_key_from_wallet(wallet_path="./.smswallet.json"):
     with open(wallet_path, "r") as wallet_file:
         wallet_data = json.load(wallet_file)
         return wallet_data["privkey"]
@@ -55,7 +55,7 @@ def decrypt_data_with_aes(aes_key, encrypted_data):
     decryptor = cipher.decryptor()
     return decryptor.update(ciphertext) + decryptor.finalize()
 
-def decrypt_file(txid, wallet_path="./.wallet.json"):
+def decrypt_file(txid, wallet_path="./.smswallet.json"):
     # Load private key from wallet
     wif_key = load_private_key_from_wallet(wallet_path)
     privkey = privkey_to_ec_privkey(wif_key)
