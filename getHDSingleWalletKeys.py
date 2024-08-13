@@ -2,6 +2,8 @@ import json
 import datetime
 from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
+import configparser
+import os
 
 # Function to derive Dogecoin addresses and private keys from a seed phrase
 def derive_dogecoin_addresses(seed_phrase, max_consecutive_unused=20):
@@ -16,11 +18,7 @@ def derive_dogecoin_addresses(seed_phrase, max_consecutive_unused=20):
     i = 0
 
     # Connect to Dogecoin Core RPC
-    rpc_user = "<username>"
-    rpc_password = "<password>"
-    rpc_host = "127.0.0.1"
-    rpc_port = "22555"
-    rpc_connection = connect_to_rpc(rpc_user, rpc_password, rpc_host, rpc_port)
+    rpc_connection = connect_to_rpc()
 
     # Continue deriving addresses until a certain number of consecutive unused addresses is reached
     while unused_addresses_count < max_consecutive_unused:
@@ -55,12 +53,28 @@ def save_to_json(data):
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f'dogecoin_addresses_{timestamp}.json'
 
-    with open(filename, 'w') as json_file:
+    # Determine the main directory and create the misc directory if it doesn't exist
+    main_directory = os.path.dirname(os.path.abspath(__file__))
+    misc_directory = os.path.join(main_directory, 'misc')
+    os.makedirs(misc_directory, exist_ok=True)
+
+    # Save the file in the misc directory
+    file_path = os.path.join(misc_directory, filename)
+    with open(file_path, 'w') as json_file:
         json.dump(data, json_file, indent=4)
-    print(f"Addresses and keys have been saved to {filename}")
+    print(f"Addresses and keys have been saved to {file_path}")
 
 # Function to interact with Dogecoin Core RPC
-def connect_to_rpc(rpc_user, rpc_password, rpc_host, rpc_port):
+def connect_to_rpc():
+    # Read the rpc.conf file from the main directory
+    config = configparser.ConfigParser()
+    config.read('rpc.conf')
+
+    rpc_user = config['rpc']['user']
+    rpc_password = config['rpc']['password']
+    rpc_host = config['rpc'].get('host', '127.0.0.1')
+    rpc_port = config['rpc'].get('port', '22555')
+
     rpc_url = f"http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}"
     return AuthServiceProxy(rpc_url)
 
@@ -77,3 +91,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
