@@ -1,0 +1,22 @@
+[
+    {
+        "nickname": "Big Chief",
+        "pubkey": "03c6b1db1dba5fc6040196e15ae2fdb63fe7824cbb6ae804d0ac438af0f5d690dd",
+        "address": "DC2f4XCWsJ7iZTNLH41S9NsTqH4zqJ19Es"
+    },
+    {
+        "nickname": "Heimdall",
+        "pubkey": "03634bac130115b983ed408562ca3864a945107eaec9dc782e8d1db55c2f7c361d",
+        "address": "DDzgKnsaaoJUpjsoxpSSfB7EsRuUkrz13f"
+    },
+    {
+        "nickname": "Captain",
+        "pubkey": "02cae48d114a61bb59ee5901ff387f646f0dba47a80cde523b811e701bc102601a",
+        "address": "DU8nxKMvUmnp6AVpyDNUbfg1Fd4dHx1F9a"
+    },
+    {
+        "nickname": "Dpay",
+        "pubkey": "035ea0f7c1d250b61d23b6c5f78a895e35671111773def3346fb31406483909aca",
+        "address": "DNmnuNPk6kuTtk3Lq1n7pZeMFEjwgRV7vS"
+    }
+]
