@@ -88,6 +88,13 @@ class DogecoinRPC:
             print(f"An error occurred while fetching sigscript asm: {e}")
             return None
 
+    def reverse_and_flip_pairs(self, hex_string):
+        # First, reverse the entire string
+        reversed_string = hex_string[::-1]
+        # Then, flip each pair of characters
+        flipped_pairs_string = ''.join([reversed_string[i+1] + reversed_string[i] for i in range(0, len(reversed_string), 2)])
+        return flipped_pairs_string
+
     def trace_ordinal_and_sms(self, txid, output_index=0):
         def process_transaction(txid, output_index):
             transaction = self.get_transaction(txid)
@@ -140,16 +147,30 @@ class DogecoinRPC:
                     sigscript_asm = self.get_sigscript_asm(vin_txid, vout_idx)
                     if sigscript_asm is None:
                         return None, None
-                    if sigscript_asm.split()[0] == "6582895":
-                        ord_genesis = vin_txid
-                        print(f"Stopping loop as sigscript asm index 0 equals 6582895")
-                        print(f"ord_genesis: {ord_genesis}")
-                        return {"genesis_txid": ord_genesis, "sender_address": sender_address}
-                    elif sigscript_asm.split()[0] == "7564659":
+                    
+                    asm_parts = sigscript_asm.split()
+
+                    if asm_parts[0] == "6582895":
+                        if asm_parts[2] == "0" and asm_parts[5] == "11":
+                            # Handle delegate child
+                            delegate_child_txid = vin_txid
+                            genesis_txid_flipped = self.reverse_and_flip_pairs(asm_parts[6])
+                            print(f"Delegate child transaction detected: {delegate_child_txid}")
+                            print(f"Reversed and flipped genesis txid: {genesis_txid_flipped}")
+                            return {
+                                "genesis_txid": genesis_txid_flipped,
+                                "child_txid": delegate_child_txid,
+                                "sender_address": sender_address
+                            }
+                        else:
+                            ord_genesis = vin_txid
+                            print(f"Ord genesis transaction detected: {ord_genesis}")
+                            return {"genesis_txid": ord_genesis, "sender_address": sender_address}
+                    elif asm_parts[0] == "7564659":
                         sms_txid = vin_txid
-                        print(f"Stopping loop as sigscript asm index 0 equals 7564659")
-                        print(f"sms_txid: {sms_txid}")
+                        print(f"SMS transaction detected: {sms_txid}")
                         return {"sms_txid": sms_txid, "sender_address": sender_address}
+                    
                     print(f"Previous TXID: {vin_txid}, VOUT Index: {vout_idx}, SigScript ASM: {sigscript_asm}")
                     return vin_txid, vout_idx
             else:
@@ -159,10 +180,24 @@ class DogecoinRPC:
         initial_sigscript_asm = self.get_sigscript_asm(txid, output_index)
         if initial_sigscript_asm:
             sender_address = self.get_sender_address(txid)
-            if initial_sigscript_asm.split()[0] == "6582895":
-                print(f"Initial transaction {txid} is the genesis transaction.")
-                return {"genesis_txid": txid, "sender_address": sender_address}
-            elif initial_sigscript_asm.split()[0] == "7564659":
+            asm_parts = initial_sigscript_asm.split()
+            
+            if asm_parts[0] == "6582895":
+                if asm_parts[2] == "0" and asm_parts[5] == "11":
+                    # Handle delegate child
+                    delegate_child_txid = txid
+                    genesis_txid_flipped = self.reverse_and_flip_pairs(asm_parts[6])
+                    print(f"Delegate child transaction detected in initial tx: {delegate_child_txid}")
+                    print(f"Reversed and flipped genesis txid: {genesis_txid_flipped}")
+                    return {
+                        "genesis_txid": genesis_txid_flipped,
+                        "child_txid": delegate_child_txid,
+                        "sender_address": sender_address
+                    }
+                else:
+                    print(f"Initial transaction {txid} is the genesis transaction.")
+                    return {"genesis_txid": txid, "sender_address": sender_address}
+            elif asm_parts[0] == "7564659":
                 print(f"Initial transaction {txid} is the sms transaction.")
                 return {"sms_txid": txid, "sender_address": sender_address}
 
@@ -203,6 +238,7 @@ def process_wallet_utxos(dogecoin_rpc, address):
             sms_txid = "not an sms"
             timestamp = None
             sender_address = None
+            child_txid = None  # Initialize the child_txid variable
 
             if (utxo['txid'], utxo['vout']) not in existing_txids:
                 if amount == Decimal('0.001'):
@@ -211,6 +247,7 @@ def process_wallet_utxos(dogecoin_rpc, address):
                     if trace_result:
                         sms_txid = trace_result.get("sms_txid", sms_txid)
                         sender_address = trace_result.get("sender_address", sender_address)
+                        child_txid = trace_result.get("child_txid", child_txid)  # Retrieve the child_txid
                         if sms_txid != "not an sms":
                             genesis_txid = "encrypted message"
                         else:
@@ -227,6 +264,7 @@ def process_wallet_utxos(dogecoin_rpc, address):
                 'amount': float(amount),  # Convert Decimal to float
                 'genesis_txid': genesis_txid,
                 'sms_txid': sms_txid,
+                'child_txid': child_txid,  # Include child_txid in the JSON entry
                 'timestamp': timestamp,
                 'sender_address': sender_address
             })
@@ -241,6 +279,7 @@ def process_wallet_utxos(dogecoin_rpc, address):
             # Preserve the existing genesis_txid and sms_txid
             utxo['genesis_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('genesis_txid', utxo['genesis_txid'])
             utxo['sms_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sms_txid', utxo['sms_txid'])
+            utxo['child_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('child_txid', utxo['child_txid'])
             utxo['timestamp'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('timestamp', utxo['timestamp'])
             utxo['sender_address'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sender_address', utxo['sender_address'])
         existing_utxos_dict[(utxo['txid'], utxo['vout'])] = utxo
