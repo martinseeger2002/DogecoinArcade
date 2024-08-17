@@ -87,20 +87,30 @@ def save_decrypted_file(txid, mimetype, decrypted_data):
     output_dir = "./smscontent"
     os.makedirs(output_dir, exist_ok=True)
 
+    # Handle known MIME types explicitly
     if mimetype == "text/plain":
         output_file_path = os.path.join(output_dir, f"{txid}.txt")
         with open(output_file_path, "w") as file:
             file.write(decrypted_data.decode())
         print(f"Decrypted text saved to {output_file_path}")
+        return output_file_path
+    elif mimetype == "image/webp":
+        output_file_path = os.path.join(output_dir, f"{txid}.webp")
+        with open(output_file_path, "wb") as file:
+            file.write(decrypted_data)
+        print(f"Decrypted image saved to {output_file_path}")
+        return output_file_path
     else:
-        extension = mimetypes.guess_extension(mimetype) or ""
+        extension = mimetypes.guess_extension(mimetype)
         if extension:
             output_file_path = os.path.join(output_dir, f"{txid}{extension}")
             with open(output_file_path, "wb") as file:
                 file.write(decrypted_data)
             print(f"Decrypted file saved to {output_file_path}")
+            return output_file_path
         else:
             print(f"Unhandled MIME type: {mimetype}, could not determine a valid extension.")
+            return None
 
 def decrypt_file(txid, sms_data, privkey, rpc_connection):
     encrypted_data_base64 = sms_data['encrypted_data']
@@ -119,57 +129,61 @@ def decrypt_file(txid, sms_data, privkey, rpc_connection):
     if mimetype != "text/plain":
         decrypted_data = base64.b64decode(decrypted_data)
 
-    # Save the decrypted file as before
-    save_decrypted_file(txid, mimetype, decrypted_data)
+    # Save the decrypted file
+    output_file_path = save_decrypted_file(txid, mimetype, decrypted_data)
 
-    # Fetch public key and address associated with the transaction
-    pubkeys_with_addresses = getPubKey.get_public_keys_from_tx(txid)
-    pubkey, address = pubkeys_with_addresses[0]  # Assuming first entry is what we need
+    # Only proceed if the file was saved successfully
+    if output_file_path is not None:
+        # Fetch public key and address associated with the transaction
+        pubkeys_with_addresses = getPubKey.get_public_keys_from_tx(txid)
+        pubkey, address = pubkeys_with_addresses[0]  # Assuming first entry is what we need
 
-    # Get nickname from address book
-    nickname = get_nickname_from_address_book(pubkey, address)
+        # Get nickname from address book
+        nickname = get_nickname_from_address_book(pubkey, address)
 
-    # Fetch the transaction details to get the blockhash
-    tx_details = rpc_connection.getrawtransaction(txid, 1)
-    blockhash = tx_details["blockhash"]
+        # Fetch the transaction details to get the blockhash
+        tx_details = rpc_connection.getrawtransaction(txid, 1)
+        blockhash = tx_details["blockhash"]
 
-    # Fetch the block details to get the block time
-    block_details = rpc_connection.getblock(blockhash)
-    timestamp = datetime.utcfromtimestamp(block_details["time"]).isoformat()
+        # Fetch the block details to get the block time
+        block_details = rpc_connection.getblock(blockhash)
+        timestamp = datetime.utcfromtimestamp(block_details["time"]).isoformat()
 
-    # Handle data field in sms_data JSON
-    if mimetype != "text/plain" and "data" in sms_data:
-        data_content = sms_data["data"]
+        # Handle data field in sms_data JSON
+        if mimetype != "text/plain" and "data" in sms_data:
+            data_content = sms_data["data"]
+        else:
+            data_content = decrypted_data.decode() if mimetype == "text/plain" else ""
+
+        # Prepare the new JSON content
+        new_json_data = {
+            "nickname": nickname,
+            "pubkey": pubkey,
+            "address": address,
+            "mimetype": mimetype,
+            "data": data_content,
+            "sms_txid": txid,
+            "timestamp": timestamp,  # Use blockchain timestamp
+            "tag": "received",
+            "read": "false"
+        }
+
+        # Determine the JSON file path and append the data using the address as the filename
+        output_json_dir = "./smslogs"
+        os.makedirs(output_json_dir, exist_ok=True)
+        output_json_file_path = os.path.join(output_json_dir, f"{address}.json")
+
+        append_to_json_file(output_json_file_path, new_json_data)
+
+        print(f"Decrypted data appended to {output_json_file_path}")
+
+        # Delete the original .json file after processing
+        json_file_path = os.path.join("./smscontent", f"{txid}.json")
+        if os.path.exists(json_file_path):
+            os.remove(json_file_path)
+            print(f"Deleted original file: {json_file_path}")
     else:
-        data_content = decrypted_data.decode() if mimetype == "text/plain" else ""
-
-    # Prepare the new JSON content
-    new_json_data = {
-        "nickname": nickname,
-        "pubkey": pubkey,
-        "address": address,
-        "mimetype": mimetype,
-        "data": data_content,
-        "sms_txid": txid,
-        "timestamp": timestamp,  # Use blockchain timestamp
-        "tag": "received",
-        "read": "false"
-    }
-
-    # Determine the JSON file path and append the data using the address as the filename
-    output_json_dir = "./smslogs"
-    os.makedirs(output_json_dir, exist_ok=True)
-    output_json_file_path = os.path.join(output_json_dir, f"{address}.json")
-
-    append_to_json_file(output_json_file_path, new_json_data)
-
-    print(f"Decrypted data appended to {output_json_file_path}")
-
-    # Delete the original .json file after processing
-    json_file_path = os.path.join("./smscontent", f"{txid}.json")
-    if os.path.exists(json_file_path):
-        os.remove(json_file_path)
-        print(f"Deleted original file: {json_file_path}")
+        print(f"File for transaction {txid} was not saved. Original content not deleted.")
 
 def load_rpc_config(config_file='rpc.conf'):
     config = configparser.ConfigParser()
