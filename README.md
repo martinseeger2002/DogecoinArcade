@@ -134,8 +134,8 @@ Example of a wallet JSON file:
         "genesis_txid": "c51e48d09f8a7f221a16a6d2f64899471eb83b1879ec64bc26e6fc1cd19ed722",
         "sms_txid": "not an sms",
         "child_txid": null,
-        "timestamp": 1722619120,
-        "sender_address": null
+        "timestamp": "2024-08-13 04:20:31",
+        "sender_address": "DDzgKnsaaoJUpjsoxpSSfB7EsRuUkrz13f"
     },
     {
         "txid": "fae477d390ac897e6d14c205682259fcc15053c3885b125bf98b9055783cb44e",
