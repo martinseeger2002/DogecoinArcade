@@ -138,14 +138,14 @@ Example of a wallet JSON file:
         "sender_address": null
     },
     {
-        "txid": "85c4bb2e66b3ca9b864bba3c68f56cae88318215882b89204811685c4355179b",
-        "vout": 1,
+        "txid": "fae477d390ac897e6d14c205682259fcc15053c3885b125bf98b9055783cb44e",
+        "vout": 0,
         "amount": 0.001,
-        "genesis_txid": "35e7996171f140fb05827760480a06d7b2c0221452b384694663de346dbe7a6f",
+        "genesis_txid": "f1ebee981f32bd64a41e17f91e0d11f17f0eda7e60ee2fa599a44adf2a11ef2c",
         "sms_txid": "not an sms",
-        "child_txid": null,
-        "timestamp": 1722619120,
-        "sender_address": null
+        "child_txid": "fae477d390ac897e6d14c205682259fcc15053c3885b125bf98b9055783cb44e",
+        "timestamp": "2024-08-16 17:43:58",
+        "sender_address": "DCH2qBqCD7RvxAwkafHNxb74pCpjRLimXs"
     },
     {
         "txid": "193b107c5176f14f53da06864e4946fde42f89e9d6a7017dae29ed5b8cb08a58",
