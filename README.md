@@ -17,6 +17,23 @@ The `content` folder contains all the ordinal content files. These files can be 
 
 ---
 
+### smscontent
+
+The `smscontent` folder contains all the sms content files. These files can be of any type, and their names correspond to their genesis ordinal transaction IDs.
+
+---
+
+### smslogs
+
+The `smslogs` folder contains <contact address>.json with relevant details.
+
+---
+
+### sms
+
+The `sms` folder contains addressBook.json with relevant details.
+
+---
 ### indexes
 
 The `indexes` folder contains an index text file for each ordinal. The name of each text file corresponds to the genesis transaction ID. Each text file contains the subsequent transaction IDs for ordinals that required more than one transaction.
