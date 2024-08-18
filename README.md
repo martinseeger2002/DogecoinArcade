@@ -200,7 +200,7 @@ Example of a wallet JSON file:
 ```
 How to send a sms
 ```
-node . sms DC2f4XCWsJ7iZTNLH41S9NsTqH4zqJ19Es text.txt
+
 ```
 Join the server
 https://discord.gg/znM2s4VF
