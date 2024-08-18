@@ -128,22 +128,34 @@ Example of a wallet JSON file:
 ```json
 [
     {
-        "txid": "c8b94184b7e873572d68a2c8b5377d10c531851a69d97720be43a4d3536e3803",
-        "vout": 0,
-        "amount": 0.001,
-        "genesis_txid": null
-    },
-    {
-        "txid": "4e11b4526d16dc933ac5aff2df23e6ad7cfd5b0c0f9717ae7aed5dbe7e189203",
-        "vout": 1,
-        "amount": 2.58826836,
-        "genesis_txid": "not an ord"
-    },
-    {
         "txid": "113aed7a4e898e83fa28a245b9a1e6651f71f275d98ca6fb4e077b2497017b90",
         "vout": 0,
         "amount": 0.001,
-        "genesis_txid": "c51e48d09f8a7f221a16a6d2f64899471eb83b1879ec64bc26e6fc1cd19ed722"
+        "genesis_txid": "c51e48d09f8a7f221a16a6d2f64899471eb83b1879ec64bc26e6fc1cd19ed722",
+        "sms_txid": "not an sms",
+        "child_txid": null,
+        "timestamp": 1722619120,
+        "sender_address": null
+    },
+    {
+        "txid": "85c4bb2e66b3ca9b864bba3c68f56cae88318215882b89204811685c4355179b",
+        "vout": 1,
+        "amount": 0.001,
+        "genesis_txid": "35e7996171f140fb05827760480a06d7b2c0221452b384694663de346dbe7a6f",
+        "sms_txid": "not an sms",
+        "child_txid": null,
+        "timestamp": 1722619120,
+        "sender_address": null
+    },
+    {
+        "txid": "85c4bb2e66b3ca9b864bba3c68f56cae88318215882b89204811685c4355179b",
+        "vout": 4,
+        "amount": 0.001,
+        "genesis_txid": "17e10586ba7b19a153cd3c18f37f8bea10494d791135bc25823145e515e5af04",
+        "sms_txid": "not an sms",
+        "child_txid": null,
+        "timestamp": 1722619120,
+        "sender_address": null
     }
 ]
 ```
