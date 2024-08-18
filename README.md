@@ -123,6 +123,28 @@ This script sends an ordinal using one transaction ID and index defining the ord
 
 This script creates and updates JSON files in the `wallets` directory. Each wallet file is named after the wallet's receiving address.
 
+---
+
+### getWalletSmsContent.py
+This script retrieves all SMS-related ordinals from the wallet's JSON and saves the content in the smscontent folder. It organizes the SMS data for further processing.
+
+---
+
+### decryptWalletSmsContent.py
+This script decrypts the encrypted files in the smscontent folder and saves each file in its original format. The decrypted files are saved with the <txid>.<mime type extension> format and updates the ./smslogs/<contact address>.json with relevant details.
+
+---
+
+###SendSms.py
+This script sends an encrypted JSON message to a contact's wallet address. It also creates an entry in the ./smslogs/<contact address>.json to record the transaction.
+
+---
+
+###getPubKey.py
+This module is used by decryptWalletSmsContent.py to fetch the public key and address associated with a specific transaction ID (TXID).
+
+---
+
 Example of a wallet JSON file:
 
 ```json
