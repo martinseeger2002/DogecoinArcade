@@ -135,12 +135,12 @@ This script decrypts the encrypted files in the smscontent folder and saves each
 
 ---
 
-###SendSms.py
+### SendSms.py
 This script sends an encrypted JSON message to a contact's wallet address. It also creates an entry in the ./smslogs/<contact address>.json to record the transaction.
 
 ---
 
-###getPubKey.py
+### getPubKey.py
 This module is used by decryptWalletSmsContent.py to fetch the public key and address associated with a specific transaction ID (TXID).
 
 ---
