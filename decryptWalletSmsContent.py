@@ -12,11 +12,20 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 import getPubKey  # Assuming getPubKey is available and works as described
+import getPrivKey  # Assuming getPrivKey is available and works as described
 
-def load_private_key_from_wallet(wallet_path="./.smswallet.json"):
-    with open(wallet_path, "r") as wallet_file:
-        wallet_data = json.load(wallet_file)
-        return wallet_data["privkey"]
+def find_wallet_for_txid(txid, wallets_dir="./wallets"):
+    """Find the wallet containing the UTXO with the given txid."""
+    for wallet_filename in os.listdir(wallets_dir):
+        if wallet_filename.endswith(".json"):
+            wallet_address = os.path.splitext(wallet_filename)[0]
+            wallet_file_path = os.path.join(wallets_dir, wallet_filename)
+            with open(wallet_file_path, "r") as wallet_file:
+                wallet_data = json.load(wallet_file)
+                for utxo in wallet_data:
+                    if utxo["sms_txid"] == txid:
+                        return wallet_address
+    return None
 
 def wif_to_hex(wif_key):
     decoded_wif = base58.b58decode_check(wif_key)
@@ -87,30 +96,24 @@ def save_decrypted_file(txid, mimetype, decrypted_data):
     output_dir = "./smscontent"
     os.makedirs(output_dir, exist_ok=True)
 
-    # Handle known MIME types explicitly
-    if mimetype == "text/plain":
-        output_file_path = os.path.join(output_dir, f"{txid}.txt")
+    extension = mimetypes.guess_extension(mimetype)
+
+    if extension is None:
+        print(f"Unhandled MIME type: {mimetype}, could not determine a valid extension.")
+        return None
+
+    output_file_path = os.path.join(output_dir, f"{txid}{extension}")
+
+    # Handle different types of files appropriately
+    if "text" in mimetype:
         with open(output_file_path, "w") as file:
             file.write(decrypted_data.decode())
-        print(f"Decrypted text saved to {output_file_path}")
-        return output_file_path
-    elif mimetype == "image/webp":
-        output_file_path = os.path.join(output_dir, f"{txid}.webp")
+    else:
         with open(output_file_path, "wb") as file:
             file.write(decrypted_data)
-        print(f"Decrypted image saved to {output_file_path}")
-        return output_file_path
-    else:
-        extension = mimetypes.guess_extension(mimetype)
-        if extension:
-            output_file_path = os.path.join(output_dir, f"{txid}{extension}")
-            with open(output_file_path, "wb") as file:
-                file.write(decrypted_data)
-            print(f"Decrypted file saved to {output_file_path}")
-            return output_file_path
-        else:
-            print(f"Unhandled MIME type: {mimetype}, could not determine a valid extension.")
-            return None
+
+    print(f"Decrypted file saved to {output_file_path}")
+    return output_file_path
 
 def decrypt_file(txid, sms_data, privkey, rpc_connection):
     encrypted_data_base64 = sms_data['encrypted_data']
@@ -202,11 +205,6 @@ def connect_to_rpc():
     return AuthServiceProxy(rpc_url)
 
 def main():
-    # Load private key from wallet
-    wallet_path = "./.smswallet.json"
-    wif_key = load_private_key_from_wallet(wallet_path)
-    privkey = privkey_to_ec_privkey(wif_key)
-
     # Connect to RPC
     rpc_connection = connect_to_rpc()
 
@@ -221,8 +219,18 @@ def main():
             with open(input_file_path, "r") as json_file:
                 sms_data = json.load(json_file)
 
+            # Find the wallet containing the UTXO for this txid
+            wallet_address = find_wallet_for_txid(txid)
+            if wallet_address is None:
+                print(f"Wallet containing txid {txid} not found.")
+                continue
+
+            # Retrieve the private key for the wallet address
+            privkey = getPrivKey.get_private_key(wallet_address)
+            ec_privkey = privkey_to_ec_privkey(privkey)
+
             # Decrypt the file and save the output
-            decrypt_file(txid, sms_data, privkey, rpc_connection)
+            decrypt_file(txid, sms_data, ec_privkey, rpc_connection)
 
 if __name__ == "__main__":
     main()
