@@ -96,7 +96,17 @@ def save_decrypted_file(txid, mimetype, decrypted_data):
     output_dir = "./smscontent"
     os.makedirs(output_dir, exist_ok=True)
 
-    extension = mimetypes.guess_extension(mimetype)
+    # Manually handle common MIME types
+    mime_extension_map = {
+        'image/webp': '.webp',
+        'image/jpeg': '.jpg',
+        'image/png': '.png',
+        'text/plain': '.txt',
+        # Add more mappings as necessary
+    }
+
+    # Try to guess the extension; fallback to manual mapping
+    extension = mimetypes.guess_extension(mimetype) or mime_extension_map.get(mimetype)
 
     if extension is None:
         print(f"Unhandled MIME type: {mimetype}, could not determine a valid extension.")
@@ -115,7 +125,7 @@ def save_decrypted_file(txid, mimetype, decrypted_data):
     print(f"Decrypted file saved to {output_file_path}")
     return output_file_path
 
-def decrypt_file(txid, sms_data, privkey, rpc_connection):
+def decrypt_file(txid, sms_data, privkey, wallet_address, rpc_connection):
     encrypted_data_base64 = sms_data['encrypted_data']
     mimetype = sms_data['mimetype']
 
@@ -166,6 +176,7 @@ def decrypt_file(txid, sms_data, privkey, rpc_connection):
             "mimetype": mimetype,
             "data": data_content,
             "sms_txid": txid,
+            "receiving_address": wallet_address,  # Add the receiving address used to get the privKey         
             "timestamp": timestamp,  # Use blockchain timestamp
             "tag": "received",
             "read": "false"
@@ -230,7 +241,7 @@ def main():
             ec_privkey = privkey_to_ec_privkey(privkey)
 
             # Decrypt the file and save the output
-            decrypt_file(txid, sms_data, ec_privkey, rpc_connection)
+            decrypt_file(txid, sms_data, ec_privkey, wallet_address, rpc_connection)
 
 if __name__ == "__main__":
     main()
