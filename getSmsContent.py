@@ -3,24 +3,23 @@ from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 import binascii
 import mimetypes
 import os
+import time
 
 # Load RPC credentials from rpc.conf
 config = configparser.ConfigParser()
 config.read('rpc.conf')
 
-RPC_USER = config.get('rpc', 'user')
-RPC_PASSWORD = config.get('rpc', 'password')
-RPC_HOST = config.get('rpc', 'host')
-RPC_PORT = config.getint('rpc', 'port')
+def get_rpc_connection(coin_type):
+    rpc_user = config.get(f'{coin_type}_rpc', 'user')
+    rpc_password = config.get(f'{coin_type}_rpc', 'password')
+    rpc_host = config.get(f'{coin_type}_rpc', 'host')
+    rpc_port = config.getint(f'{coin_type}_rpc', 'port')
+    rpc_url = f"http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}"
+    return AuthServiceProxy(rpc_url)
 
-# Construct the RPC URL
-RPC_URL = f"http://{RPC_USER}:{RPC_PASSWORD}@{RPC_HOST}:{RPC_PORT}"
-
-# Connect to the Dogecoin node
-rpc_connection = AuthServiceProxy(RPC_URL)
-
-# Global variable
+# Global variables
 num_chunks = -1
+rpc_connection = None
 
 def hex_to_ascii(hex_string):
     """ Convert hex string to ASCII """
@@ -179,95 +178,102 @@ def create_index_file(genesis_txid):
             file.write('')
         print(f"Index file created: {index_file_path}")
 
-def process_tx(genesis_txid, depth=10):
+def process_tx(genesis_txid, depth=500):
+    global rpc_connection
     print(f"process_tx called with genesis_txid={genesis_txid} and depth={depth}")
-    try:
-        data_string = ""
-        mime_type = None
 
-        is_genesis = True
-        txid = genesis_txid
+    for coin_type in ['dogecoin', 'bellscoin']:
+        try:
+            rpc_connection = get_rpc_connection(coin_type)
+            print(f"Attempting to process with {coin_type.capitalize()} RPC...")
 
-        processed_txids = set()
-        vout_index = 0
+            # Test the connection
+            rpc_connection.getblockcount()
 
-        # Create the index file as soon as we start processing the genesis transaction
-        create_index_file(genesis_txid)
+            data_string = ""
+            mime_type = None
+            is_genesis = True
+            txid = genesis_txid
+            processed_txids = set()
+            vout_index = 0
 
-        txid_list = read_txids_from_file(genesis_txid)
-        if not txid_list:
-            print(f"No transaction IDs found in file for genesis_txid {genesis_txid}, will use find_next_ordinal_tx.")
-            txid_list = []
+            create_index_file(genesis_txid)
+            txid_list = read_txids_from_file(genesis_txid)
+            if not txid_list:
+                print(f"No transaction IDs found in file for genesis_txid {genesis_txid}, will use find_next_ordinal_tx.")
+                txid_list = []
 
-        while True:
-            if txid in processed_txids:
-                print(f"Detected loop, skipping txid {txid}.")
-                # Move on to the next transaction
-                next_txid, vout_index = find_next_ordinal_tx(txid, vout_index, depth, genesis_txid)
-                if next_txid:
-                    txid = next_txid
-                    continue
-                else:
-                    print(f"End of chain reached, no further ordinals found.")
-                    break
-            processed_txids.add(txid)
-
-            raw_tx = rpc_connection.getrawtransaction(txid, 1)
-
-            # Print the transaction ID
-            print(f"Transaction ID: {txid}")
-
-            for vin in raw_tx['vin']:
-                if 'scriptSig' in vin:
-                    asm_data = vin['scriptSig'].get('asm', '').split()
-
-                    if is_genesis:
-                        if asm_data[0] == "7564659":
-                            new_data_string, mime_type, end_of_data = process_genesis_tx(asm_data)
-                            data_string += new_data_string
-                            is_genesis = False
-                        else:
-                            print("Invalid genesis transaction format.")
-                            return
-                    else:
-                        new_data_string, end_of_data = process_subsequent_tx(asm_data)
-                        data_string += new_data_string
-
-            # Break if we reached the last chunk
-            if end_of_data:
-                break
-
-            # Find the next ordinal transaction
-            if num_chunks > 0:
-                if txid_list:
-                    txid = txid_list.pop(0)
-                    print(f"Using next txid from file: {txid}")
-                else:
+            while True:
+                if txid in processed_txids:
+                    print(f"Detected loop, skipping txid {txid}.")
                     next_txid, vout_index = find_next_ordinal_tx(txid, vout_index, depth, genesis_txid)
                     if next_txid:
                         txid = next_txid
+                        continue
                     else:
                         print(f"End of chain reached, no further ordinals found.")
                         break
+                processed_txids.add(txid)
+
+                raw_tx = rpc_connection.getrawtransaction(txid, 1)
+                print(f"Transaction ID: {txid}")
+
+                for vin in raw_tx['vin']:
+                    if 'scriptSig' in vin:
+                        asm_data = vin['scriptSig'].get('asm', '').split()
+
+                        if is_genesis:
+                            if asm_data[0] == "7564659":
+                                new_data_string, mime_type, end_of_data = process_genesis_tx(asm_data)
+                                data_string += new_data_string
+                                is_genesis = False
+                            else:
+                                print("Invalid genesis transaction format.")
+                                return
+                        else:
+                            new_data_string, end_of_data = process_subsequent_tx(asm_data)
+                            data_string += new_data_string
+
+                if end_of_data:
+                    break
+
+                if num_chunks > 0:
+                    if txid_list:
+                        txid = txid_list.pop(0)
+                        print(f"Using next txid from file: {txid}")
+                    else:
+                        next_txid, vout_index = find_next_ordinal_tx(txid, vout_index, depth, genesis_txid)
+                        if next_txid:
+                            txid = next_txid
+                        else:
+                            print(f"End of chain reached, no further ordinals found.")
+                            break
+                else:
+                    print(f"End of data, num_chunks = 0.")
+                    break
+
+            if len(data_string) % 2 != 0:
+                print("Warning: Data string length is odd, adding five '0' characters...")
+                data_string += "00000"
+
+            if mime_type:
+                save_to_file(data_string, mime_type, genesis_txid)
             else:
-                print(f"End of data, num_chunks = 0.")
-                break
+                print("Error: MIME type is None, cannot save file.")
 
-        # Ensure the data string length is even
-        if len(data_string) % 2 != 0:
-            print("Warning: Data string length is odd, adding five '0' characters...")
-            data_string += "00000"  # Add five '0' characters
+            print(f"Successfully processed with {coin_type.capitalize()} RPC.")
+            return  # Exit the function if processing is successful
 
-        # Save the compiled data string to a file with appropriate mime type extension
-        if mime_type:
-            save_to_file(data_string, mime_type, genesis_txid)
-        else:
-            print("Error: MIME type is None, cannot save file.")
+        except JSONRPCException as e:
+            if "No such mempool or blockchain transaction" in str(e):
+                print(f"Transaction not found in {coin_type.capitalize()} blockchain, trying next...")
+            else:
+                print(f"JSONRPCException with {coin_type.capitalize()} RPC: {e}")
+        except Exception as e:
+            print(f"Unexpected error with {coin_type.capitalize()} RPC: {e}")
 
-    except JSONRPCException as e:
-        print(f"JSONRPCException: {e}")  # Handle exceptions as needed
-    except Exception as e:
-        print(f"Unexpected error: {e}")
+        if coin_type == 'bellscoin':
+            print("Transaction not found in either Dogecoin or Bellscoin blockchain.")
 
 if __name__ == "__main__":
     import sys
