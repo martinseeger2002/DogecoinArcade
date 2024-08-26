@@ -10,20 +10,16 @@ from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 config = configparser.ConfigParser()
 config.read('rpc.conf')
 
-RPC_USER = config.get('rpc', 'user')
-RPC_PASSWORD = config.get('rpc', 'password')
-RPC_HOST = config.get('rpc', 'host')
-RPC_PORT = config.getint('rpc', 'port')
-
 WALLETS_DIR = "./wallets"
 BLOCK_HEIGHT_LIMIT = 4609723  # Define the block height limit for tracing ordinals
 
-class DogecoinRPC:
-    def __init__(self, rpc_user, rpc_password, rpc_host='localhost', rpc_port=22555):
-        self.rpc_user = rpc_user
-        self.rpc_password = rpc_password
-        self.rpc_host = rpc_host
-        self.rpc_port = rpc_port
+class CoinRPC:
+    def __init__(self, coin_type):
+        self.coin_type = coin_type
+        self.rpc_user = config.get(f'{coin_type}_rpc', 'user')
+        self.rpc_password = config.get(f'{coin_type}_rpc', 'password')
+        self.rpc_host = config.get(f'{coin_type}_rpc', 'host')
+        self.rpc_port = config.getint(f'{coin_type}_rpc', 'port')
         self.rpc_connection = None
         self.connect()
 
@@ -212,8 +208,8 @@ class DogecoinRPC:
 
         return None
 
-def list_wallet_addresses(dogecoin_rpc):
-    utxos = dogecoin_rpc.list_unspent()
+def list_wallet_addresses(coin_rpc):
+    utxos = coin_rpc.list_unspent()
     addresses = {utxo['address'] for utxo in utxos}
     return list(addresses)
 
@@ -223,12 +219,15 @@ def read_existing_utxos(filename):
             return json.load(f)
     return []
 
-def process_wallet_utxos(dogecoin_rpc, address):
+def process_wallet_utxos(coin_rpc, address):
+    # Ensure the WALLETS_DIR exists
+    os.makedirs(WALLETS_DIR, exist_ok=True)
+    
     filename = os.path.join(WALLETS_DIR, f"{address}.json")
     existing_utxos = read_existing_utxos(filename)
     existing_txids = {(existing_utxo['txid'], existing_utxo['vout']) for existing_utxo in existing_utxos}
 
-    utxos = dogecoin_rpc.list_unspent()
+    utxos = coin_rpc.list_unspent()
 
     new_utxos = []
     for utxo in utxos:
@@ -238,45 +237,41 @@ def process_wallet_utxos(dogecoin_rpc, address):
             sms_txid = "not an sms"
             timestamp = None
             sender_address = None
-            child_txid = None  # Initialize the child_txid variable
+            child_txid = None
 
             if (utxo['txid'], utxo['vout']) not in existing_txids:
                 if amount == Decimal('0.001'):
                     print(f"Tracing ordinals for UTXO: {utxo['txid']} with amount {utxo['amount']}")
-                    trace_result = dogecoin_rpc.trace_ordinal_and_sms(utxo['txid'], utxo['vout'])
+                    trace_result = coin_rpc.trace_ordinal_and_sms(utxo['txid'], utxo['vout'])
                     if trace_result:
                         sms_txid = trace_result.get("sms_txid", sms_txid)
                         sender_address = trace_result.get("sender_address", sender_address)
-                        child_txid = trace_result.get("child_txid", child_txid)  # Retrieve the child_txid
+                        child_txid = trace_result.get("child_txid", child_txid)
                         if sms_txid != "not an sms":
                             genesis_txid = "encrypted message"
                         else:
                             genesis_txid = trace_result.get("genesis_txid", genesis_txid)
 
-                # Get the timestamp from the block and convert it to a readable format
-                tx_details = dogecoin_rpc.get_transaction(utxo['txid'])
+                tx_details = coin_rpc.get_transaction(utxo['txid'])
                 if tx_details and 'blocktime' in tx_details:
                     timestamp = datetime.utcfromtimestamp(tx_details['blocktime']).strftime('%Y-%m-%d %H:%M:%S')
 
             new_utxos.append({
                 'txid': utxo['txid'],
                 'vout': utxo['vout'],
-                'amount': float(amount),  # Convert Decimal to float
+                'amount': float(amount),
                 'genesis_txid': genesis_txid,
                 'sms_txid': sms_txid,
-                'child_txid': child_txid,  # Include child_txid in the JSON entry
+                'child_txid': child_txid,
                 'timestamp': timestamp,
                 'sender_address': sender_address
             })
 
-            # Reconnect after processing each UTXO
-            dogecoin_rpc.reconnect()
+            coin_rpc.reconnect()
 
-    # Merge new UTXOs with existing UTXOs
     existing_utxos_dict = {(existing_utxo['txid'], existing_utxo['vout']): existing_utxo for existing_utxo in existing_utxos}
     for utxo in new_utxos:
         if (utxo['txid'], utxo['vout']) in existing_utxos_dict:
-            # Preserve the existing genesis_txid and sms_txid
             utxo['genesis_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('genesis_txid', utxo['genesis_txid'])
             utxo['sms_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sms_txid', utxo['sms_txid'])
             utxo['child_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('child_txid', utxo['child_txid'])
@@ -285,19 +280,27 @@ def process_wallet_utxos(dogecoin_rpc, address):
         existing_utxos_dict[(utxo['txid'], utxo['vout'])] = utxo
     merged_utxos = list(existing_utxos_dict.values())
 
-    # Write the merged UTXOs back to the file
+    # Ensure the directory exists before writing the file
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+
     with open(filename, 'w') as f:
         json.dump(merged_utxos, f, indent=4)
     print(f"Created or updated file {filename} with UTXOs for address {address}")
 
-def process_all_wallets(dogecoin_rpc):
-    addresses = list_wallet_addresses(dogecoin_rpc)
+def process_all_wallets(coin_rpc):
+    addresses = list_wallet_addresses(coin_rpc)
     for address in addresses:
         print(f"Processing UTXOs for address: {address}")
-        process_wallet_utxos(dogecoin_rpc, address)
+        try:
+            process_wallet_utxos(coin_rpc, address)
+        except Exception as e:
+            print(f"An error occurred while processing address {address}: {e}")
 
 if __name__ == "__main__":
-    dogecoin_rpc = DogecoinRPC(RPC_USER, RPC_PASSWORD, RPC_HOST, RPC_PORT)
-
-    print("\nProcessing all wallets sequentially:")
-    process_all_wallets(dogecoin_rpc)
+    for coin_type in ['dogecoin', 'bellscoin']:
+        print(f"\nProcessing {coin_type.capitalize()} wallets:")
+        try:
+            coin_rpc = CoinRPC(coin_type)
+            process_all_wallets(coin_rpc)
+        except Exception as e:
+            print(f"An error occurred while processing {coin_type} wallets: {e}")
