@@ -198,9 +198,122 @@ Example of a wallet JSON file:
     }
 ]
 ```
-How to send a sms
-```
+# Dogecoin Arcade API
 
-```
+The Dogecoin Arcade API provides endpoints for managing and interacting with Dogecoin ordinals, wallet content, and SMS data.
+
+## API Endpoints
+
+### 1. Process Ordinal
+
+- **URL:** `/api/process_ordinal`
+- **Method:** POST
+- **Description:** Initiates the processing of a Dogecoin ordinal.
+- **Request Body:**
+  ```json
+  {
+    "genesis_txid": "string",
+    "depth": integer (optional, default: 1000)
+  }
+  ```
+- **Responses:**
+  - 202: Processing started
+  - 400: Invalid genesis_txid
+  - 503: Server busy
+
+### 2. Process Wallet
+
+- **URL:** `/api/process_wallet`
+- **Method:** POST
+- **Description:** Processes wallet files to extract ordinal information.
+- **Responses:**
+  - 200: Wallet processing completed
+  - 500: Error during processing
+
+### 3. Process Collection
+
+- **URL:** `/api/process_collection`
+- **Method:** POST
+- **Description:** Processes a collection of ordinals.
+- **Request Body:**
+  ```json
+  {
+    "inscription_id": "string"
+  }
+  ```
+- **Responses:**
+  - 200: Collection processing completed
+  - 400: Invalid inscription_id
+  - 500: Error during processing
+
+### 4. Process SMS
+
+- **URL:** `/api/process_sms`
+- **Method:** POST
+- **Description:** Processes SMS content associated with a Dogecoin ordinal.
+- **Request Body:**
+  ```json
+  {
+    "genesis_txid": "string",
+    "depth": integer (optional, default: 1000)
+  }
+  ```
+- **Responses:**
+  - 200: SMS processing completed
+  - 400: Invalid genesis_txid
+  - 500: Error during processing
+
+### 5. Decrypt SMS
+
+- **URL:** `/api/decrypt_sms`
+- **Method:** POST
+- **Description:** Decrypts processed SMS content.
+- **Responses:**
+  - 200: SMS decryption completed
+  - 500: Error during decryption
+
+### 6. Send Ordinal
+
+- **URL:** `/api/send_ord`
+- **Method:** POST
+- **Description:** Sends a Dogecoin ordinal to a specified address.
+- **Request Body:**
+  ```json
+  {
+    "utxo_txid": "string",
+    "utxo_vout": integer,
+    "recipient_address": "string"
+  }
+  ```
+- **Responses:**
+  - 200: Ordinal sent successfully
+  - 400: Invalid input
+  - 500: Error during sending
+
+## Content Serving
+
+While not strictly an API endpoint, the following route is used to serve ordinal content:
+
+- **URL:** `/content/<file_id>i0`
+- **Method:** GET
+- **Description:** Serves the content of a specific ordinal.
+- **Responses:**
+  - 200: Content served successfully
+  - 404: Content not found
+  - 503: Server busy processing ordinal
+
+## Error Handling
+
+- All API endpoints return JSON responses.
+- HTTP status codes are used to indicate the success or failure of an API request.
+- Detailed error messages are provided in the response body when applicable.
+
+## Notes
+
+- The API uses a global processing flag to prevent concurrent processing of ordinals.
+- Some operations are handled asynchronously using a thread pool.
+- Make sure to handle potential 503 (Service Unavailable) responses, as the server may be busy processing other requests.
+- The content serving route (`/content/<file_id>i0`) is designed to work with HTML `src` attributes and may return various content types (HTML, images, etc.) based on the stored ordinal data.
+
 Join the server
 https://discord.gg/znM2s4VF
