@@ -5,6 +5,11 @@ from getSmsContent import process_tx
 def file_exists_in_content_folder(file_base_name):
     """Check if a file with the given base name exists in the ./smscontent folder, ignoring the extension."""
     content_folder = "./smscontent"
+    if not os.path.exists(content_folder):
+        os.makedirs(content_folder)
+        print(f"Created folder: {content_folder}")
+        return False
+    
     for file in os.listdir(content_folder):
         if file.startswith(file_base_name):
             return True
