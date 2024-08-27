@@ -10,6 +10,11 @@ from getWalletOrdContent import process_wallet_files
 from getCollection import process_inscription_id as process_collection
 from getSmsContent import process_tx as process_sms
 from decryptWalletSmsContent import main as decrypt_sms
+from sendOrd import send_ord
+import logging
+import json
+from flask import url_for
+import subprocess  # Add this line
 
 app = Flask(__name__)
 
@@ -109,17 +114,21 @@ def process_wallet_api():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/process_collection', methods=['POST'])
-def process_collection_api():
-    data = request.json
-    inscription_id = data.get('inscription_id')
+from getCollection import get_collection  # Update this import
 
-    if not inscription_id:
-        return jsonify({"error": "Invalid inscription_id"}), 400
+@app.route('/api/getCollection', methods=['POST'])
+def get_collection_api():
+    data = request.json
+    json_file_name = data.get('json_file_name')
+
+    if not json_file_name:
+        return jsonify({"error": "Invalid json_file_name"}), 400
 
     try:
-        process_collection(inscription_id)
-        return jsonify({"message": "Collection processing completed"}), 200
+        # Append .json to the filename
+        full_json_file_name = f"{json_file_name}.json"
+        result = get_collection(full_json_file_name)
+        return jsonify({"message": "Collection processing completed", "result": result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -146,9 +155,61 @@ def decrypt_sms_api():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/favicon.ico')
-def favicon():
-    return send_file('favicon.ico', mimetype='image/x-icon')
+# @app.route('/api/send_ord', methods=['POST'])
+# def send_ord_api():
+#     data = request.json
+#     utxo_txid = data.get('utxo_txid')
+#     utxo_vout = data.get('utxo_vout')
+#     recipient_address = data.get('recipient_address')
+
+#     if not all([utxo_txid, isinstance(utxo_vout, int), recipient_address]):
+#         return jsonify({"error": "Invalid input. Please provide utxo_txid, utxo_vout, and recipient_address"}), 400
+
+#     try:
+#         result = send_ord(utxo_txid, utxo_vout, recipient_address)
+#         return jsonify({"message": "Ordinal sent successfully", "result": result}), 200
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/wallet/<address>', methods=['GET'])
+def get_wallet_utxos(address):
+    wallet_dir = './wallets'
+    wallet_file = f"{address}.json"
+    wallet_path = os.path.join(wallet_dir, wallet_file)
+
+    logging.info(f"Attempting to access wallet file: {wallet_path}")
+
+    if not os.path.exists(wallet_path):
+        logging.error(f"Wallet file not found: {wallet_path}")
+        return jsonify({"error": "Wallet file not found"}), 404
+
+    try:
+        with open(wallet_path, 'r') as file:
+            utxos = json.load(file)
+        
+        # The entire file content is the list of UTXOs
+        logging.info(f"Successfully retrieved UTXOs for address: {address}")
+        return jsonify({"address": address, "utxos": utxos}), 200
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON in wallet file: {wallet_path}. Error: {str(e)}")
+        return jsonify({"error": "Invalid JSON in wallet file"}), 500
+    except Exception as e:
+        logging.error(f"Error reading wallet file: {wallet_path}. Error: {str(e)}")
+        return jsonify({"error": f"Error reading wallet file: {str(e)}"}), 500
+
+@app.route('/api/wallets', methods=['GET'])
+def get_wallet_files():
+    wallet_dir = './wallets'
+    try:
+        files = os.listdir(wallet_dir)
+        # Create relative links for each wallet file
+        wallet_links = [
+            f"/api/wallet/{os.path.splitext(file)[0]}"
+            for file in files
+        ]
+        return jsonify({"wallets": wallet_links}), 200
+    except Exception as e:
+        return jsonify({"error": f"Error reading wallet directory: {str(e)}"}), 500
 
 @app.errorhandler(404)
 def not_found_error(error):
@@ -166,5 +227,102 @@ def not_found_error(error):
 
     return "Processing ordinal, click refresh when complete", 404
 
+@app.route('/api/address_book', methods=['GET'])
+def get_address_book():
+    address_book_path = './sms/addressBook.json'
+
+    logging.info(f"Attempting to access address book file: {address_book_path}")
+
+    if not os.path.exists(address_book_path):
+        logging.error(f"Address book file not found: {address_book_path}")
+        return jsonify({"error": "Address book file not found"}), 404
+
+    try:
+        with open(address_book_path, 'r') as file:
+            address_book = json.load(file)
+        
+        logging.info("Successfully retrieved address book")
+        return jsonify(address_book), 200
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON in address book file. Error: {str(e)}")
+        return jsonify({"error": "Invalid JSON in address book file"}), 500
+    except Exception as e:
+        logging.error(f"Error reading address book file. Error: {str(e)}")
+        return jsonify({"error": f"Error reading address book file: {str(e)}"}), 500
+
+@app.route('/api/getOrdContent', methods=['POST'])
+def get_ord_content_api():
+    try:
+        process_wallet_files()
+        return jsonify({"message": "Wallet processing completed"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/walletSync', methods=['POST'])
+def wallet_sync_api():
+    try:
+        # Get the directory of the current script
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # Construct the path to walletSync.py
+        wallet_sync_path = os.path.join(current_dir, 'walletSync.py')
+        
+        # Run walletSync.py as a subprocess
+        result = subprocess.run(['python', wallet_sync_path], capture_output=True, text=True, check=True)
+        
+        # Check if the script ran successfully
+        if result.returncode == 0:
+            return jsonify({"message": "Wallet synchronization completed successfully"}), 200
+        else:
+            return jsonify({"error": f"Wallet synchronization failed: {result.stderr}"}), 500
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error during wallet synchronization: {e.stderr}")
+        return jsonify({"error": f"Wallet synchronization failed: {e.stderr}"}), 500
+    except Exception as e:
+        logging.error(f"Unexpected error during wallet synchronization: {str(e)}")
+        return jsonify({"error": f"Unexpected error during wallet synchronization: {str(e)}"}), 500
+
+@app.route('/api/getWalletOrdContent', methods=['POST'])
+def get_wallet_ord_content_api():
+    try:
+        # Get the directory of the current script
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # Construct the path to getWalletOrdContent.py
+        wallet_ord_content_path = os.path.join(current_dir, 'getWalletOrdContent.py')
+        
+        # Run getWalletOrdContent.py as a subprocess
+        result = subprocess.run(['python', wallet_ord_content_path], capture_output=True, text=True, check=True)
+        
+        # Check if the script ran successfully
+        if result.returncode == 0:
+            return jsonify({"message": "Wallet ordinal content processing completed successfully", "output": result.stdout}), 200
+        else:
+            return jsonify({"error": f"Wallet ordinal content processing failed: {result.stderr}"}), 500
+    except subprocess.CalledProcessError as e:
+        return jsonify({"error": f"Error during wallet ordinal content processing: {e.stderr}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Unexpected error during wallet ordinal content processing: {str(e)}"}), 500
+
+@app.route('/api/getWalletSmsContent', methods=['POST'])
+def get_wallet_sms_content_api():
+    try:
+        # Get the directory of the current script
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # Construct the path to getWalletSmsContent.py
+        wallet_sms_content_path = os.path.join(current_dir, 'getWalletSmsContent.py')
+        
+        # Run getWalletSmsContent.py as a subprocess
+        result = subprocess.run(['python', wallet_sms_content_path], capture_output=True, text=True, check=True)
+        
+        # Check if the script ran successfully
+        if result.returncode == 0:
+            return jsonify({"message": "Wallet SMS content processing completed successfully", "output": result.stdout}), 200
+        else:
+            return jsonify({"error": f"Wallet SMS content processing failed: {result.stderr}"}), 500
+    except subprocess.CalledProcessError as e:
+        return jsonify({"error": f"Error during wallet SMS content processing: {e.stderr}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Unexpected error during wallet SMS content processing: {str(e)}"}), 500
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    logging.basicConfig(level=logging.INFO)
+    app.run(host='0.0.0.0', port=5000, debug=True)
