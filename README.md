@@ -1,4 +1,3 @@
-
 # Dogecoin Arcade Project
 
 This project involves a comprehensive system for managing and interacting with Dogecoin ordinals, including tools for collection management, content handling, and blockchain interaction. Below is a detailed overview of the project structure and components.
@@ -234,16 +233,22 @@ The Dogecoin Arcade API provides endpoints for managing and interacting with Dog
 
 - **URL:** `/api/process_collection`
 - **Method:** POST
-- **Description:** Processes a collection of ordinals.
+- **Description:** Processes a collection of ordinals from a specified JSON file.
 - **Request Body:**
   ```json
   {
-    "inscription_id": "string"
+    "json_file_name": "string"
   }
   ```
 - **Responses:**
   - 200: Collection processing completed
-  - 400: Invalid inscription_id
+    ```json
+    {
+      "message": "Collection processing completed",
+      "result": [processed_items_data]
+    }
+    ```
+  - 400: Invalid json_file_name
   - 500: Error during processing
 
 ### 4. Process SMS
