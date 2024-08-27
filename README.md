@@ -1,202 +1,64 @@
+
 # Dogecoin Arcade Project
 
-This project involves a comprehensive system for managing and interacting with Dogecoin ordinals, including tools for collection management, content handling, and blockchain interaction. Below is a detailed overview of the project structure and components.
+This project is a comprehensive system for managing and interacting with Dogecoin and Bellscoin ordinals, including tools for collection management, content handling, blockchain interaction, and SMS functionality. Below is a detailed overview of the project structure and components.
 
 ## Project Structure
 
-### collections
+### Folders
+
+- **collections**: Contains JSON files defining various collections, each with metadata and associated items.
+- **content**: Stores ordinal content files, named after their genesis ordinal transaction IDs.
+- **files**: Contains additional project files (added 2 weeks ago).
+- **indexes**: Holds index text files for each ordinal, containing subsequent transaction IDs for multi-transaction ordinals.
+- **jsonTools**: Contains a program for processing `DM.json` files to output Dogecoin Arcade collection JSONs.
+- **simple_scripts**: A collection of tools for viewing transaction data and interacting with the blockchain.
+- **sms**: Contains `addressBook.json` and other SMS-related files.
+- **static**: Stores non-ordinal content files.
+- **templates**: Contains non-ordinal HTML files and JavaScript code for Dogecoin Arcade.
+
+### Key Files
+
+- **CallGetCollection.py**: Retrieves ordinal data for a collection and saves it to the `content` folder.
+- **CallSendOrd.py**: Sends an ordinal using `sendOrd` with specified parameters. Now includes Bellscoin cross-chain capabilities.
+- **DecryptSmsData.py**: Decrypts SMS data (updated to use `.smswallet` extension).
+- **DogecoinArcade.py**: Flask server for serving ordinal content.
+- **DogecoinArcadeAPI.py**: API endpoints for various functionalities.
+- **SendSms.py**: Sends encrypted SMS messages and logs transactions.
+- **callDecryptData.py**: Calls the decryption function for data.
+- **callGetOrd.py**: Retrieves data for a specific ordinal.
+- **callGetPrivKey.py**: Retrieves private keys (SMS functionality added).
+- **callGetPubKey.py**: Retrieves public keys (SMS functionality added).
+- **callGetSms.py**: Retrieves SMS data.
+- **decryptData.py** and **decrypt_data.py**: Decryption utilities.
+- **decryptWalletSmsContent.py**: Decrypts wallet SMS content (fixed PK bug).
+- **encrypt_data.py**: Encryption utility for SMS.
+- **eraseContent.py** and **eraseIndexes.py**: Utilities to delete content and index files below a size threshold.
+- **getCollection.py**: Retrieves ordinal data for collection JSONs.
+- **getHDSingleWalletKeys.py**: Generates HD wallet keys.
+- **getOrdContent.py**: Extracts and saves ordinal content data. Now supports Bellscoin.
+- **getPrivKey.py** and **getPubKey.py**: Retrieve private and public keys. Now support Bellscoin.
+- **getSmsContent.py**: Retrieves SMS content. Now supports Bellscoin.
+- **getWalletOrdContent.py**: Retrieves all ordinals from wallet JSONs.
+- **getWalletSmsContent.py**: Retrieves SMS-related ordinals from wallet JSONs.
+- **rpc.conf**: Contains RPC credentials for Dogecoin and Bellscoin.
+- **sendOrd.py**: Sends an ordinal. Now supports Bellscoin.
+- **sendsms.js**: JavaScript utility for sending SMS (updated to use `.smswallet.json`).
+- **walletSync.py**: Creates and updates wallet JSON files. Now includes Bellscoin RPC.
+
+## Features
+
+1. **Ordinal Management**: Process, retrieve, and manage Dogecoin and Bellscoin ordinals.
+2. **Wallet Synchronization**: Keep wallet data up-to-date with blockchain information.
+3. **Collection Handling**: Manage and process collections of ordinals.
+4. **SMS Functionality**: Send, receive, encrypt, and decrypt SMS messages using blockchain.
+5. **Content Serving**: Serve ordinal content through a Flask server.
+6. **Cross-chain Support**: Added capabilities for Bellscoin alongside Dogecoin.
+7. **API Endpoints**: Comprehensive API for interacting with various functionalities.
+8. **Key Management**: Generate and manage HD wallet keys, public keys, and private keys.
+9. **Encryption and Decryption**: Utilities for securing sensitive data.
+10. **Transaction Handling**: Send and process blockchain transactions.
 
-The `collections` folder contains several JSON files that define various collections. Each collection has metadata and items associated with it.
-
----
-
-### content
-
-The `content` folder contains all the ordinal content files. These files can be of any type, and their names correspond to their genesis ordinal transaction IDs.
-
----
-
-### smscontent
-
-The `smscontent` folder contains all the sms content files. These files can be of any type, and their names correspond to their genesis ordinal transaction IDs.
-
----
-
-### smslogs
-
-The `smslogs` folder contains <contact address>.json with relevant details.
-
----
-
-### sms
-
-The `sms` folder contains addressBook.json with relevant details.
-
----
-### indexes
-
-The `indexes` folder contains an index text file for each ordinal. The name of each text file corresponds to the genesis transaction ID. Each text file contains the subsequent transaction IDs for ordinals that required more than one transaction.
-
----
-
-### jsonTools
-
-The `jsonTools` folder contains a program that processes a `DM.json` file and outputs a Dogecoin Arcade collection JSON.
-
----
-
-### simple_scripts
-
-The `simple_scripts` folder contains a collection of tools used to view transaction data and interact with the blockchain in different ways.
-
----
-
-### static
-
-The `static` folder contains non-doginal content files.
-
----
-
-### templates
-
-The `templates` folder contains non-doginal HTML files and JavaScript code for Dogecoin Arcade.
-
----
-
-### CallGetCollection.py
-
-This script calls `getCollection` with the defined collection JSON and retrieves all the ordinal data from the blockchain. It saves this data to files in the `content` folder by calling `getOrd`.
-
----
-
-### CallSendOrd.py
-
-This script sends an ordinal using `sendOrd` with the defined receiving wallet, the transaction ID (txid), and the index.
-
----
-
-### DogecoinArcade.py
-
-This script is a Flask server that serves the content of the ordinals. It either retrieves the content from the `content` folder or calls `getOrd` and then displays it from the `content` folder.
-
----
-
-### callGetOrd.py
-
-This script calls `getOrd` to retrieve data for a specific ordinal and saves it to the appropriate file.
-
----
-
-### eraseContent.py
-
-This script deletes all content below a specified size threshold.
-
----
-
-### eraseIndexes.py
-
-This script deletes all index files below a specified size threshold.
-
----
-
-### favicon.ico
-
-This file is the favicon for the Dogecoin Arcade website, displayed in the browser tab.
-
----
-
-### getCollection.py
-
-This script retrieves the ordinal data for each transaction ID in the collection JSON.
-
----
-
-### getOrdContent.py
-
-This program extracts the ordinal content data and saves it in the `content` folder. It also creates or updates the index files in the `indexes` folder for the defined transaction ID (txid).
-
----
-
-### getWalletOrdContent.py
-
-This script retrieves all the ordinals from the genesis transaction ID (txid) in the wallet's JSON.
-
----
-
-### rpc.conf
-
-This file contains the RPC credentials.
-
----
-
-### sendOrd.py
-
-This script sends an ordinal using one transaction ID and index defining the ordinal and another transaction ID in the sending wallet that is "not an ord."
-
----
-
-### walletSync.py
-
-This script creates and updates JSON files in the `wallets` directory. Each wallet file is named after the wallet's receiving address.
-
----
-
-### getWalletSmsContent.py
-This script retrieves all SMS-related ordinals from the wallet's JSON and saves the content in the smscontent folder. It organizes the SMS data for further processing.
-
----
-
-### decryptWalletSmsContent.py
-This script decrypts the encrypted files in the smscontent folder and saves each file in its original format. The decrypted files are saved with the <txid>.<mime type extension> format and updates the ./smslogs/<contact address>.json with relevant details.
-
----
-
-### SendSms.py
-This script sends an encrypted JSON message to a contact's wallet address. It also creates an entry in the ./smslogs/<contact address>.json to record the transaction.
-
----
-
-### getPubKey.py
-This module is used by decryptWalletSmsContent.py to fetch the public key and address associated with a specific transaction ID (TXID).
-
----
-
-Example of a wallet JSON file:
-
-```json
-[
-    {
-        "txid": "113aed7a4e898e83fa28a245b9a1e6651f71f275d98ca6fb4e077b2497017b90",
-        "vout": 0,
-        "amount": 0.001,
-        "genesis_txid": "c51e48d09f8a7f221a16a6d2f64899471eb83b1879ec64bc26e6fc1cd19ed722",
-        "sms_txid": "not an sms",
-        "child_txid": null,
-        "timestamp": "2024-08-13 04:20:31",
-        "sender_address": "DDzgKnsaaoJUpjsoxpSSfB7EsRuUkrz13f"
-    },
-    {
-        "txid": "fae477d390ac897e6d14c205682259fcc15053c3885b125bf98b9055783cb44e",
-        "vout": 0,
-        "amount": 0.001,
-        "genesis_txid": "f1ebee981f32bd64a41e17f91e0d11f17f0eda7e60ee2fa599a44adf2a11ef2c",
-        "sms_txid": "not an sms",
-        "child_txid": "fae477d390ac897e6d14c205682259fcc15053c3885b125bf98b9055783cb44e",
-        "timestamp": "2024-08-16 17:43:58",
-        "sender_address": "DCH2qBqCD7RvxAwkafHNxb74pCpjRLimXs"
-    },
-    {
-        "txid": "193b107c5176f14f53da06864e4946fde42f89e9d6a7017dae29ed5b8cb08a58",
-        "vout": 0,
-        "amount": 0.001,
-        "genesis_txid": "encrypted message",
-        "sms_txid": "d3af3dd369241e32b32b382b76bec8e9dee1c613347928dabfff351055d5e0a0",
-        "child_txid": null,
-        "timestamp": "2024-08-13 04:20:31",
-        "sender_address": "DDzgKnsaaoJUpjsoxpSSfB7EsRuUkrz13f"
-    }
-]
-```
 # Dogecoin Arcade API
 
 The Dogecoin Arcade API provides endpoints for managing and interacting with Dogecoin ordinals, wallet content, and SMS data.
@@ -229,11 +91,11 @@ The Dogecoin Arcade API provides endpoints for managing and interacting with Dog
   - 200: Wallet processing completed
   - 500: Error during processing
 
-### 3. Process Collection
+### 3. Get Collection
 
-- **URL:** `/api/process_collection`
+- **URL:** `/api/getCollection`
 - **Method:** POST
-- **Description:** Processes a collection of ordinals from a specified JSON file.
+- **Description:** Retrieves and processes a collection of ordinals from a specified JSON file.
 - **Request Body:**
   ```json
   {
@@ -242,12 +104,6 @@ The Dogecoin Arcade API provides endpoints for managing and interacting with Dog
   ```
 - **Responses:**
   - 200: Collection processing completed
-    ```json
-    {
-      "message": "Collection processing completed",
-      "result": [processed_items_data]
-    }
-    ```
   - 400: Invalid json_file_name
   - 500: Error during processing
 
@@ -277,27 +133,72 @@ The Dogecoin Arcade API provides endpoints for managing and interacting with Dog
   - 200: SMS decryption completed
   - 500: Error during decryption
 
-### 6. Send Ordinal
+### 6. Get Wallet UTXOs
 
-- **URL:** `/api/send_ord`
-- **Method:** POST
-- **Description:** Sends a Dogecoin ordinal to a specified address.
-- **Request Body:**
-  ```json
-  {
-    "utxo_txid": "string",
-    "utxo_vout": integer,
-    "recipient_address": "string"
-  }
-  ```
+- **URL:** `/api/wallet/<address>`
+- **Method:** GET
+- **Description:** Retrieves the UTXOs for a specific wallet address.
 - **Responses:**
-  - 200: Ordinal sent successfully
-  - 400: Invalid input
-  - 500: Error during sending
+  - 200: UTXOs retrieved successfully
+  - 404: Wallet file not found
+  - 500: Error reading wallet file
+
+### 7. Get All Wallets
+
+- **URL:** `/api/wallets`
+- **Method:** GET
+- **Description:** Retrieves a list of all wallet files.
+- **Responses:**
+  - 200: Wallet list retrieved successfully
+  - 500: Error reading wallet directory
+
+### 8. Get Address Book
+
+- **URL:** `/api/address_book`
+- **Method:** GET
+- **Description:** Retrieves the address book.
+- **Responses:**
+  - 200: Address book retrieved successfully
+  - 404: Address book file not found
+  - 500: Error reading address book file
+
+### 9. Get Ordinal Content
+
+- **URL:** `/api/getOrdContent`
+- **Method:** POST
+- **Description:** Processes wallet files to extract ordinal content.
+- **Responses:**
+  - 200: Wallet processing completed
+  - 500: Error during processing
+
+### 10. Wallet Sync
+
+- **URL:** `/api/walletSync`
+- **Method:** POST
+- **Description:** Synchronizes wallet data.
+- **Responses:**
+  - 200: Wallet synchronization completed successfully
+  - 500: Error during wallet synchronization
+
+### 11. Get Wallet Ordinal Content
+
+- **URL:** `/api/getWalletOrdContent`
+- **Method:** POST
+- **Description:** Retrieves ordinal content from wallet files.
+- **Responses:**
+  - 200: Wallet ordinal content processing completed successfully
+  - 500: Error during wallet ordinal content processing
+
+### 12. Get Wallet SMS Content
+
+- **URL:** `/api/getWalletSmsContent`
+- **Method:** POST
+- **Description:** Retrieves SMS content from wallet files.
+- **Responses:**
+  - 200: Wallet SMS content processing completed successfully
+  - 500: Error during wallet SMS content processing
 
 ## Content Serving
-
-While not strictly an API endpoint, the following route is used to serve ordinal content:
 
 - **URL:** `/content/<file_id>i0`
 - **Method:** GET
@@ -320,5 +221,24 @@ While not strictly an API endpoint, the following route is used to serve ordinal
 - Make sure to handle potential 503 (Service Unavailable) responses, as the server may be busy processing other requests.
 - The content serving route (`/content/<file_id>i0`) is designed to work with HTML `src` attributes and may return various content types (HTML, images, etc.) based on the stored ordinal data.
 
-Join the server
-https://discord.gg/znM2s4VF
+## Setup and Usage
+
+[Add instructions on how to set up and use the project]
+
+## Dependencies
+
+- Flask
+- Python 3.x
+- [List other major dependencies]
+
+## Contributing
+
+[Add information about how to contribute to the project]
+
+## License
+
+This project is licensed under [specify the license]. See the LICENSE file for details.
+
+## Community
+
+Join our Discord server for discussions and support: https://discord.gg/znM2s4VF
