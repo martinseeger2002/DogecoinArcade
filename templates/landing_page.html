@@ -57,9 +57,48 @@
             color: #f90;
             text-decoration: none;
         }
+        .dogetube-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+        .dogetube-button button {
+            background-color: #f90;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1em;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .corner-buttons {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 15px;
+        }
+        .corner-buttons button {
+            background-color: #f90;
+            color: #fff;
+            border: none;
+            padding: 15px 25px;
+            font-size: 1.2em;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        .corner-buttons button:hover {
+            background-color: #ffa500;
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
+    <div class="corner-buttons">
+        <button onclick="openDogeTubeTV()">DogeTubeTV</button>
+        <button onclick="openHeimysLibrary()">Heimy's Library</button>
+    </div>
     <div class="container">
         <h1>Dogecoin Arcade</h1>
         <input type="text" id="inscriptionID" placeholder="Enter Inscription ID" onkeydown="handleKeyPress(event)">
@@ -85,6 +124,14 @@
             if (event.key === 'Enter') {
                 submitInscriptionID();
             }
+        }
+
+        function openDogeTubeTV() {
+            window.open('/content/d4029d8c219b77d093aad464dada3bb15320f7c7339a086d3a6c0ce7b402dda8i0', '_blank');
+        }
+
+        function openHeimysLibrary() {
+            window.open('/content/287041eddd21d585818ba843ec37e05ca9edb3069af11dfcae09b9e3adb2265di0', '_blank');
         }
     </script>
 </body>
