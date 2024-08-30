@@ -90,21 +90,7 @@ def serve_content(file_id):
         print(f"File not found: {filename} in {content_dir}")
         abort(404)
 
-@app.route('/api/process_ordinal', methods=['POST'])
-def process_ordinal_api():
-    data = request.json
-    genesis_txid = data.get('genesis_txid')
-    depth = data.get('depth', 1000)
-
-    if not genesis_txid or not is_hexadecimal(genesis_txid):
-        return jsonify({"error": "Invalid genesis_txid"}), 400
-
-    with processing_lock:
-        if not processing_flag:
-            thread_pool.submit(process_task, genesis_txid, depth)
-            return jsonify({"message": "Processing ordinal started"}), 202
-        else:
-            return jsonify({"message": "Server is busy processing another ordinal. Please try again later."}), 503
+ 
 
 @app.route('/api/process_wallet', methods=['POST'])
 def process_wallet_api():
@@ -119,14 +105,14 @@ from getCollection import get_collection  # Update this import
 @app.route('/api/getCollection', methods=['POST'])
 def get_collection_api():
     data = request.json
-    json_file_name = data.get('json_file_name')
+    collection_slug = data.get('collection_slug')
 
-    if not json_file_name:
-        return jsonify({"error": "Invalid json_file_name"}), 400
+    if not collection_slug:
+        return jsonify({"error": "Invalid collection_slug"}), 400
 
     try:
-        # Append .json to the filename
-        full_json_file_name = f"{json_file_name}.json"
+        # Append .json to the collection slug
+        full_json_file_name = f"{collection_slug}.json"
         result = get_collection(full_json_file_name)
         return jsonify({"message": "Collection processing completed", "result": result}), 200
     except Exception as e:
@@ -214,8 +200,13 @@ def get_wallet_files():
 @app.errorhandler(404)
 def not_found_error(error):
     global processing_flag
-    request_path = request.path.split('/')[-1]
-    genesis_txid = request_path[:-2] if request_path.endswith('i0') else None
+    request_path = request.path
+
+    # Ignore API routes and favicon.ico requests
+    if request_path.startswith('/api/') or request_path == '/favicon.ico':
+        return "Not Found", 404
+
+    genesis_txid = request_path.split('/')[-1][:-2] if request_path.endswith('i0') else None
 
     if not genesis_txid or not is_hexadecimal(genesis_txid):
         print(f"Invalid genesis_txid: {request_path}")
@@ -322,6 +313,70 @@ def get_wallet_sms_content_api():
         return jsonify({"error": f"Error during wallet SMS content processing: {e.stderr}"}), 500
     except Exception as e:
         return jsonify({"error": f"Unexpected error during wallet SMS content processing: {str(e)}"}), 500
+
+@app.route('/api/smswallets', methods=['GET'])
+def get_sms_wallet_files():
+    smslogs_dir = './smslogs'
+    try:
+        files = os.listdir(smslogs_dir)
+        # Create relative links for each SMS wallet file
+        sms_wallet_links = [
+            f"/api/smswallet/{os.path.splitext(file)[0]}"
+            for file in files if file.endswith('.json')
+        ]
+        return jsonify({"smsWallets": sms_wallet_links}), 200
+    except Exception as e:
+        return jsonify({"error": f"Error reading SMS logs directory: {str(e)}"}), 500
+
+@app.route('/api/smswallet/<address>', methods=['GET'])
+def get_sms_wallet(address):
+    sms_dir = './smslogs'
+    sms_file = f"{address}.json"
+    sms_path = os.path.join(sms_dir, sms_file)
+
+    logging.info(f"Attempting to access SMS wallet file: {sms_path}")
+
+    if not os.path.exists(sms_path):
+        logging.error(f"SMS wallet file not found: {sms_path}")
+        return jsonify({"error": "SMS wallet file not found"}), 404
+
+    try:
+        with open(sms_path, 'r') as file:
+            sms_data = json.load(file)
+        
+        logging.info(f"Successfully retrieved SMS wallet data for address: {address}")
+        return jsonify({"address": address, "sms_data": sms_data}), 200
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON in SMS wallet file: {sms_path}. Error: {str(e)}")
+        return jsonify({"error": "Invalid JSON in SMS wallet file"}), 500
+    except Exception as e:
+        logging.error(f"Error reading SMS wallet file: {sms_path}. Error: {str(e)}")
+        return jsonify({"error": f"Error reading SMS wallet file: {str(e)}"}), 500
+
+@app.route('/api/sms/<address>', methods=['GET'])
+def get_sms_data(address):
+    sms_dir = './smslogs'
+    sms_file = f"{address}.json"
+    sms_path = os.path.join(sms_dir, sms_file)
+
+    logging.info(f"Attempting to access SMS file: {sms_path}")
+
+    if not os.path.exists(sms_path):
+        logging.error(f"SMS file not found: {sms_path}")
+        return jsonify({"error": "SMS file not found"}), 404
+
+    try:
+        with open(sms_path, 'r') as file:
+            sms_data = json.load(file)
+        
+        logging.info(f"Successfully retrieved SMS data for address: {address}")
+        return jsonify({"address": address, "sms_data": sms_data}), 200
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON in SMS file: {sms_path}. Error: {str(e)}")
+        return jsonify({"error": "Invalid JSON in SMS file"}), 500
+    except Exception as e:
+        logging.error(f"Error reading SMS file: {sms_path}. Error: {str(e)}")
+        return jsonify({"error": f"Error reading SMS file: {str(e)}"}), 500
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
