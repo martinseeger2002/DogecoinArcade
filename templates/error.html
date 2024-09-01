@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block title %}Error - Dogecoin Arcade{% endblock %}
+
+{% block content %}
+    <h1>Error</h1>
+    <p>{{ message }}</p>
+    <a href="{{ url_for('home') }}">Back to Home</a>
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Wallets - Dogecoin Arcade{% endblock %}
+
+{% block content %}
+<style>
+    body {
+        background-color: #000;
+        color: #fff;
+        font-family: Arial, sans-serif;
+    }
+    .wallet-container {
+        display: flex;
+        margin: 20px 0;
+    }
+    .wallet-balances {
+        flex: 1;
+        overflow-x: auto;
+    }
+    .wallet-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .wallet-table th, .wallet-table td {
+        border: 1px solid #444;
+        padding: 8px;
+        text-align: left;
+    }
+    .wallet-table th {
+        background-color: #222;
+        font-weight: bold;
+    }
+    .wallet-table tr:nth-child(even) {
+        background-color: #111;
+    }
+    .wallet-table tr:hover {
+        background-color: #333;
+    }
+    .sync-button {
+        margin-bottom: 20px;
+    }
+    .sync-button button {
+        background-color: #444;
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        cursor: pointer;
+    }
+    .sync-button button:hover {
+        background-color: #555;
+    }
+    a {
+        color: #3498db;
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<h1>Wallets</h1>
+<div class="sync-button">
+    <form action="{{ url_for('wallet_sync') }}" method="post">
+        <button type="submit">Sync Wallets</button>
+    </form>
+</div>
+
+<div class="wallet-container">
+    <div class="wallet-balances">
+        <table class="wallet-table">
+            <thead>
+                <tr>
+                    <th>Address</th>
+                    <th>Coin Type</th>
+                    <th>Ordinal Count</th>
+                    <th>Non-Ordinal Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for wallet in wallets %}
+                <tr>
+                    <td><a href="{{ url_for('wallet_details', address=wallet.address) }}">{{ wallet.address }}</a></td>
+                    <td>{{ wallet.coin_type }}</td>
+                    <td>{{ wallet.ord_count }}</td>
+                    <td>{{ wallet.non_ord_balance }} {{ wallet.coin_type }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<a href="{{ url_for('home') }}">Back to Home</a>
+{% endblock %}

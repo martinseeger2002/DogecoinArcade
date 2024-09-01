@@ -98,6 +98,7 @@
     <div class="corner-buttons">
         <button onclick="openDogeTubeTV()">DogeTubeTV</button>
         <button onclick="openHeimysLibrary()">Heimy's Library</button>
+        <button onclick="syncWallet()">Sync Wallet</button>
     </div>
     <div class="container">
         <h1>Dogecoin Arcade</h1>
@@ -132,6 +133,27 @@
 
         function openHeimysLibrary() {
             window.open('/content/287041eddd21d585818ba843ec37e05ca9edb3069af11dfcae09b9e3adb2265di0', '_blank');
+        }
+
+        function syncWallet() {
+            fetch('/api/walletSync', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert(data.message);
+                } else if (data.error) {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                alert('An error occurred while syncing the wallet.');
+            });
         }
     </script>
 </body>

@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Wallet Details - Dogecoin Arcade{% endblock %}
+
+{% block content %}
+    <style>
+        .utxo-container {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        .utxo-iframe {
+            flex: 0 0 500px;
+            margin-right: 20px;
+            margin-bottom: 10px;
+        }
+        .utxo-details {
+            flex: 1;
+            min-width: 300px;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-all;
+        }
+        .utxo-details p {
+            margin: 5px 0;
+        }
+        .send-ord-form {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .send-ord-form input[type="text"] {
+            flex: 1;
+            min-width: 200px;
+            margin-right: 10px;
+            margin-bottom: 5px;
+        }
+        .send-ord-form button {
+            white-space: nowrap;
+        }
+    </style>
+
+    <h1>Wallet Details: {{ address }}</h1>
+    <p>Ordinal Count: {{ ord_count }}</p>
+    <p>Non-Ordinal DOGE Amount: {{ non_ord_amount }} DOGE</p>
+    <h2>UTXOs (Page {{ page }} of {{ total_pages }}):</h2>
+    
+    {% for utxo in utxos %}
+        <div class="utxo-container">
+            {% if utxo.genesis_txid and utxo.genesis_txid not in ["not an ord", "encrypted message"] %}
+                <div class="utxo-iframe">
+                    <iframe id="iframe-{{ utxo.txid }}-{{ utxo.vout }}" src="{{ api_base_url }}/content/{{ utxo.genesis_txid }}i0" width="500" height="500" frameborder="0"></iframe>
+                </div>
+            {% endif %}
+            <div class="utxo-details">
+                <p><strong>TxID:</strong> {{ utxo.txid }}</p>
+                <p><strong>Vout:</strong> {{ utxo.vout }}</p>
+                <p><strong>Amount:</strong> {{ utxo.amount }}</p>
+                <p><strong>Timestamp:</strong> {{ utxo.timestamp }}</p>
+                {% if utxo.genesis_txid not in ["not an ord", "encrypted message"] %}
+                    <p><strong>Inscription ID:</strong> 
+                        <a href="{{ api_base_url }}/content/{{ utxo.genesis_txid }}i0" target="_blank">{{ utxo.genesis_txid }}i0</a>
+                    </p>
+                {% else %}
+                    <p><strong>Type:</strong> {{ utxo.genesis_txid }}</p>
+                {% endif %}
+                <p><strong>SMS TxID:</strong> {{ utxo.sms_txid }}</p>
+                <p><strong>Child TxID:</strong> {{ utxo.child_txid or 'None' }}</p>
+                <p><strong>Sender Address:</strong> {{ utxo.sender_address or 'None' }}</p>
+                {% if utxo.genesis_txid and utxo.genesis_txid not in ["not an ord", "encrypted message"] %}
+                    <div class="send-ord-form">
+                        <input type="text" id="receive-address-{{ utxo.txid }}-{{ utxo.vout }}" placeholder="Enter receiving address">
+                        <button onclick="sendOrd('{{ utxo.txid }}', '{{ utxo.vout }}')">Send Ord</button>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% endfor %}
+
+    <div class="pagination">
+        {% if page > 1 %}
+            <a href="{{ url_for('wallet_details', address=address, page=page-1) }}">Previous</a>
+        {% endif %}
+        
+        {% for p in range(1, total_pages + 1) %}
+            {% if p >= page - 2 and p <= page + 2 %}
+                {% if p == page %}
+                    <strong>{{ p }}</strong>
+                {% else %}
+                    <a href="{{ url_for('wallet_details', address=address, page=p) }}">{{ p }}</a>
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+        
+        {% if page < total_pages %}
+            <a href="{{ url_for('wallet_details', address=address, page=page+1) }}">Next</a>
+        {% endif %}
+    </div>
+
+    <a href="{{ url_for('wallets') }}">Back to Wallets</a>
+
+    <script>
+        const API_BASE_URL = '{{ api_base_url }}';
+        function sendOrd(txid, vout) {
+            const receiveAddress = document.getElementById(`receive-address-${txid}-${vout}`).value;
+            if (!receiveAddress) {
+                alert('Please enter a receiving address');
+                return;
+            }
+
+            fetch(`${API_BASE_URL}/api/sendOrd`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    txid: txid,
+                    vout: vout,
+                    receiveAddress: receiveAddress
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Ord sent successfully!');
+                } else {
+                    alert('Failed to send Ord: ' + data.error);
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                alert('An error occurred while sending the Ord');
+            });
+        }
+
+        function adjustIframeTextColor() {
+            const iframes = document.querySelectorAll('.utxo-iframe iframe');
+            iframes.forEach(iframe => {
+                iframe.onload = function() {
+                    try {
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        const contentType = iframeDoc.contentType || iframeDoc.mimeType;
+                        
+                        if (contentType && contentType.startsWith('text/')) {
+                            iframeDoc.body.style.color = 'white';
+                            iframeDoc.body.style.backgroundColor = 'black';
+                        }
+                    } catch (e) {
+                        console.error('Error adjusting iframe text color:', e);
+                    }
+                };
+            });
+        }
+
+        // Call the function when the page loads
+        window.onload = adjustIframeTextColor;
+    </script>
+{% endblock %}
