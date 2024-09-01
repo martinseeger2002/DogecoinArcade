@@ -37,10 +37,10 @@ def process_wallet_files():
             
             for item in data:
                 genesis_txid = item.get("genesis_txid")
-                if genesis_txid and genesis_txid != "not an ord":
+                if genesis_txid and genesis_txid not in ["not an ord", "encrypted message"]:
                     process_inscription_id(genesis_txid)
                 else:
-                    print(f"Skipping genesis_txid {genesis_txid} as it is not an ord.")
+                    print(f"Skipping genesis_txid {genesis_txid} as it is not an ord or is an encrypted message.")
 
 if __name__ == "__main__":
     process_wallet_files()

@@ -1,4 +1,5 @@
-from flask import Flask, abort, render_template, render_template_string, send_file, request, jsonify
+from flask import Flask, abort, render_template, render_template_string, send_file, request, jsonify, make_response
+from werkzeug.utils import safe_join
 import os
 from threading import Lock, local
 from concurrent.futures import ThreadPoolExecutor
@@ -15,6 +16,10 @@ import logging
 import json
 from flask import url_for
 import subprocess  # Add this line
+import mimetypes
+from datetime import datetime
+
+mimetypes.add_type('image/webp', '.webp')
 
 app = Flask(__name__)
 
@@ -62,35 +67,37 @@ def landing_page():
 
 @app.route('/content/<file_id>i0')
 def serve_content(file_id):
-    global processing_flag
-    with processing_lock:
-        if processing_flag:
-            return "Server is busy processing ordinal. Please try again later.", 503
-
-    filename = f"{file_id}"
     content_dir = './content'
-    file_path = next((os.path.join(content_dir, file) for file in os.listdir(content_dir) if file.startswith(filename)), None)
+    file_path = next((os.path.join(content_dir, file) for file in os.listdir(content_dir) if file.startswith(file_id)), None)
     
     if file_path and os.path.isfile(file_path):
         print(f"File found: {file_path}")
 
-        if file_path.endswith('.html'):
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    html_content = f.read()
-                return render_template_string(html_content)
-            except Exception as e:
-                print(f"Error reading HTML file: {e}")
-                abort(500)
-        elif file_path.endswith('.webp'):
-            return send_file(file_path, mimetype='image/webp')
-        else:
-            return send_file(file_path)
-    else:
-        print(f"File not found: {filename} in {content_dir}")
-        abort(404)
+        mime_type, _ = mimetypes.guess_type(file_path)
 
- 
+        # Handle WebP files
+        if file_path.lower().endswith('.webp'):
+            mime_type = 'image/webp'
+
+        try:
+            with open(file_path, 'rb') as f:
+                content = f.read()
+        except Exception as e:
+            print(f"Error reading file: {e}")
+            abort(500)
+
+        response = make_response(content)
+        response.headers['Content-Type'] = mime_type
+        response.headers['Content-Disposition'] = 'inline'
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        response.headers['Last-Modified'] = datetime.now().strftime('%a, %d %b %Y %H:%M:%S GMT')
+
+        return response
+    else:
+        print(f"File not found: {file_id} in {content_dir}")
+        abort(404)
 
 @app.route('/api/process_wallet', methods=['POST'])
 def process_wallet_api():
@@ -188,14 +195,32 @@ def get_wallet_files():
     wallet_dir = './wallets'
     try:
         files = os.listdir(wallet_dir)
-        # Create relative links for each wallet file
-        wallet_links = [
-            f"/api/wallet/{os.path.splitext(file)[0]}"
-            for file in files
-        ]
-        return jsonify({"wallets": wallet_links}), 200
+        wallet_data = []
+        for file in files:
+            wallet_address = os.path.splitext(file)[0]
+            wallet_path = os.path.join(wallet_dir, file)
+            
+            with open(wallet_path, 'r') as f:
+                utxos = json.load(f)
+            
+            ord_count = sum(1 for utxo in utxos if utxo['genesis_txid'] not in ["not an ord", "encrypted message"])
+            non_ord_balance = sum(utxo['amount'] for utxo in utxos if utxo['genesis_txid'] == "not an ord")
+            
+            # Determine if it's a Bell or Doge address
+            coin_type = "Bell" if wallet_address.startswith('B') else "Doge" if wallet_address.startswith('D') else "Unknown"
+            
+            wallet_data.append({
+                "address": wallet_address,
+                "link": f"/api/wallet/{wallet_address}",
+                "ord_count": ord_count,
+                "non_ord_balance": non_ord_balance,
+                "coin_type": coin_type
+            })
+        
+        return jsonify({"wallets": wallet_data}), 200
     except Exception as e:
         return jsonify({"error": f"Error reading wallet directory: {str(e)}"}), 500
+
 
 @app.errorhandler(404)
 def not_found_error(error):
