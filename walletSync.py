@@ -5,6 +5,7 @@ import time
 from decimal import Decimal
 from datetime import datetime
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
+import mimetypes
 
 # Load RPC credentials from rpc.conf
 config = configparser.ConfigParser()
@@ -219,6 +220,14 @@ def read_existing_utxos(filename):
             return json.load(f)
     return []
 
+def get_mime_type(genesis_txid):
+    content_dir = './content'
+    for file in os.listdir(content_dir):
+        if file.startswith(genesis_txid):
+            mime_type, _ = mimetypes.guess_type(file)
+            return mime_type
+    return None
+
 def process_wallet_utxos(coin_rpc, address):
     # Ensure the WALLETS_DIR exists
     os.makedirs(WALLETS_DIR, exist_ok=True)
@@ -238,9 +247,10 @@ def process_wallet_utxos(coin_rpc, address):
             timestamp = None
             sender_address = None
             child_txid = None
+            mime_type = None
 
             if (utxo['txid'], utxo['vout']) not in existing_txids:
-                if amount == Decimal('0.001'):
+                if amount <= Decimal('0.001'):
                     print(f"Tracing ordinals for UTXO: {utxo['txid']} with amount {utxo['amount']}")
                     trace_result = coin_rpc.trace_ordinal_and_sms(utxo['txid'], utxo['vout'])
                     if trace_result:
@@ -251,6 +261,9 @@ def process_wallet_utxos(coin_rpc, address):
                             genesis_txid = "encrypted message"
                         else:
                             genesis_txid = trace_result.get("genesis_txid", genesis_txid)
+                        
+                        if genesis_txid != "not an ord" and genesis_txid != "encrypted message":
+                            mime_type = get_mime_type(genesis_txid)
 
                 tx_details = coin_rpc.get_transaction(utxo['txid'])
                 if tx_details and 'blocktime' in tx_details:
@@ -264,7 +277,8 @@ def process_wallet_utxos(coin_rpc, address):
                 'sms_txid': sms_txid,
                 'child_txid': child_txid,
                 'timestamp': timestamp,
-                'sender_address': sender_address
+                'sender_address': sender_address,
+                'mime_type': mime_type
             })
 
             coin_rpc.reconnect()
@@ -277,6 +291,7 @@ def process_wallet_utxos(coin_rpc, address):
             utxo['child_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('child_txid', utxo['child_txid'])
             utxo['timestamp'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('timestamp', utxo['timestamp'])
             utxo['sender_address'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sender_address', utxo['sender_address'])
+            utxo['mime_type'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('mime_type', utxo['mime_type'])
         existing_utxos_dict[(utxo['txid'], utxo['vout'])] = utxo
     merged_utxos = list(existing_utxos_dict.values())
 

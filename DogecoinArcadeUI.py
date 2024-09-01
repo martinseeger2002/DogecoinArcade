@@ -41,14 +41,18 @@ def wallet_details(address):
         if response.status_code == 200:
             wallet_data = response.json()
             utxos = wallet_data['utxos']
-            total_utxos = len(utxos)
+            
+            # Filter out JSON and JS files
+            filtered_utxos = [utxo for utxo in utxos if utxo.get('mime_type') not in ['application/json', 'application/javascript', 'text/javascript']]
+            
+            total_utxos = len(filtered_utxos)
             total_pages = math.ceil(total_utxos / UTXOS_PER_PAGE)
             start_index = (page - 1) * UTXOS_PER_PAGE
             end_index = start_index + UTXOS_PER_PAGE
-            paginated_utxos = utxos[start_index:end_index]
-            ord_count = sum(1 for utxo in utxos if utxo['genesis_txid'] != "not an ord")
-            non_ord_amount = sum(utxo['amount'] for utxo in utxos if utxo['genesis_txid'] == "not an ord")
-            print(f"Rendering template with api_base_url: {API_BASE_URL}")
+            paginated_utxos = filtered_utxos[start_index:end_index]
+            ord_count = sum(1 for utxo in filtered_utxos if utxo['genesis_txid'] != "not an ord")
+            non_ord_amount = sum(utxo['amount'] for utxo in filtered_utxos if utxo['genesis_txid'] == "not an ord")
+            
             return render_template('wallet_details.html', 
                                    address=address, 
                                    utxos=paginated_utxos, 
@@ -61,8 +65,16 @@ def wallet_details(address):
             abort(500, description="Failed to fetch wallet details")
     except requests.RequestException as e:
         abort(500, description=f"Error connecting to API: {str(e)}")
-    except TemplateNotFound:
-        abort(500, description="Template not found")
+    except Exception as e:
+        abort(500, description=f"Unexpected error: {str(e)}")
+
+def get_file_extension(genesis_txid):
+    content_dir = './content'
+    for file in os.listdir(content_dir):
+        if file.startswith(genesis_txid):
+            _, ext = os.path.splitext(file)
+            return ext
+    return ''
 
 @app.route('/wallet_sync', methods=['POST'])
 def wallet_sync():
