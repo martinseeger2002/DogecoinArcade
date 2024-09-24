@@ -5,7 +5,7 @@ import time
 from decimal import Decimal
 from datetime import datetime
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
-import mimetypes
+from urllib.parse import quote
 
 # Load RPC credentials from rpc.conf
 config = configparser.ConfigParser()
@@ -17,36 +17,85 @@ BLOCK_HEIGHT_LIMIT = 4609723  # Define the block height limit for tracing ordina
 class CoinRPC:
     def __init__(self, coin_type):
         self.coin_type = coin_type
-        self.rpc_user = config.get(f'{coin_type}_rpc', 'user')
-        self.rpc_password = config.get(f'{coin_type}_rpc', 'password')
-        self.rpc_host = config.get(f'{coin_type}_rpc', 'host')
-        self.rpc_port = config.getint(f'{coin_type}_rpc', 'port')
+        self.rpc_user = config.get(coin_type, 'user')
+        self.rpc_password = config.get(coin_type, 'password')
+        self.rpc_host = config.get(coin_type, 'host')
+        self.rpc_port = config.getint(coin_type, 'port')
         self.rpc_connection = None
         self.connect()
 
     def connect(self):
-        self.rpc_connection = AuthServiceProxy(f"http://{self.rpc_user}:{self.rpc_password}@{self.rpc_host}:{self.rpc_port}")
+        rpc_url = f"http://{self.rpc_user}:{self.rpc_password}@{self.rpc_host}:{self.rpc_port}"
+        self.rpc_connection = AuthServiceProxy(rpc_url)
 
-    def disconnect(self):
-        self.rpc_connection = None
+    def get_wallet_rpc(self, wallet_name):
+        encoded_wallet = quote(wallet_name)
+        wallet_url = f"http://{self.rpc_user}:{self.rpc_password}@{self.rpc_host}:{self.rpc_port}/wallet/{encoded_wallet}"
+        return AuthServiceProxy(wallet_url)
 
-    def reconnect(self):
-        self.disconnect()
-        self.connect()
-
-    def list_unspent(self):
+    def list_wallets(self):
         try:
-            return self.rpc_connection.listunspent()
+            return self.rpc_connection.listwallets()
         except JSONRPCException as e:
-            print(f"Error listing unspent transactions: {e}")
+            print(f"Error listing wallets for {self.coin_type}: {e}")
             return []
+
+    def list_addresses(self):
+        if self.coin_type == 'bellscoin_rpc':
+            return self.list_bellscoin_addresses()
+        else:
+            try:
+                received = self.rpc_connection.listreceivedbyaddress(0, True)
+                return [entry['address'] for entry in received]
+            except JSONRPCException as e:
+                print(f"Error listing addresses for {self.coin_type}: {e}")
+                return []
+
+    def list_bellscoin_addresses(self):
+        all_addresses = set()
+        for wallet in self.list_wallets():
+            wallet_rpc = self.get_wallet_rpc(wallet)
+            try:
+                unspent = wallet_rpc.listunspent(0)
+                addresses = set(utxo['address'] for utxo in unspent if 'address' in utxo)
+                all_addresses.update(addresses)
+            except JSONRPCException as e:
+                print(f"Error listing addresses for wallet {wallet}: {e}")
+        return list(all_addresses)
+
+    def list_unspent(self, address=None):
+        if self.coin_type == 'bellscoin_rpc':
+            return self.list_bellscoin_unspent(address)
+        else:
+            try:
+                if address:
+                    return [utxo for utxo in self.rpc_connection.listunspent(0) if utxo.get('address') == address]
+                else:
+                    return self.rpc_connection.listunspent(0)
+            except JSONRPCException as e:
+                print(f"Error listing unspent transactions for {self.coin_type}: {e}")
+                return []
+
+    def list_bellscoin_unspent(self, address=None):
+        all_unspent = []
+        for wallet in self.list_wallets():
+            wallet_rpc = self.get_wallet_rpc(wallet)
+            try:
+                if address:
+                    unspent = [utxo for utxo in wallet_rpc.listunspent(0) if utxo.get('address') == address]
+                else:
+                    unspent = wallet_rpc.listunspent(0)
+                all_unspent.extend(unspent)
+            except JSONRPCException as e:
+                print(f"Error listing unspent for wallet {wallet}: {e}")
+        return all_unspent
 
     def get_transaction(self, txid):
         try:
             tx = self.rpc_connection.getrawtransaction(txid, True)
             if 'blockhash' in tx:
                 block = self.rpc_connection.getblock(tx['blockhash'])
-                tx['blocktime'] = block['time']  # Add block time (timestamp)
+                tx['blocktime'] = block['time']
             else:
                 tx['blocktime'] = None
             return tx
@@ -209,10 +258,32 @@ class CoinRPC:
 
         return None
 
-def list_wallet_addresses(coin_rpc):
-    utxos = coin_rpc.list_unspent()
-    addresses = {utxo['address'] for utxo in utxos}
-    return list(addresses)
+    def get_mime_type(self, genesis_txid):
+        try:
+            print(f"Attempting to get MIME type for genesis txid: {genesis_txid}")
+            tx = self.rpc_connection.getrawtransaction(genesis_txid, True)
+            if tx and 'vin' in tx and len(tx['vin']) > 0:
+                script_sig = tx['vin'][0].get('scriptSig', {})
+                if 'asm' in script_sig:
+                    asm_parts = script_sig['asm'].split()
+                    print(f"ScriptSig ASM parts: {asm_parts}")
+                    if len(asm_parts) > 2:
+                        mime_type_hex = asm_parts[2]  # Get the third element (index 2)
+                        try:
+                            mime_type = bytes.fromhex(mime_type_hex).decode('utf-8')
+                            print(f"Found MIME type: {mime_type}")
+                            return mime_type
+                        except Exception as e:
+                            print(f"Error decoding MIME type: {e}")
+                    else:
+                        print("ScriptSig ASM has insufficient parts")
+                else:
+                    print("No 'asm' in scriptSig")
+            else:
+                print("Transaction does not have expected structure")
+        except Exception as e:
+            print(f"Error getting MIME type for genesis txid {genesis_txid}: {e}")
+        return None
 
 def read_existing_utxos(filename):
     if os.path.exists(filename):
@@ -220,102 +291,101 @@ def read_existing_utxos(filename):
             return json.load(f)
     return []
 
-def get_mime_type(genesis_txid):
-    content_dir = './content'
-    for file in os.listdir(content_dir):
-        if file.startswith(genesis_txid):
-            mime_type, _ = mimetypes.guess_type(file)
-            return mime_type
-    return None
-
 def process_wallet_utxos(coin_rpc, address):
-    # Ensure the WALLETS_DIR exists
-    os.makedirs(WALLETS_DIR, exist_ok=True)
-    
     filename = os.path.join(WALLETS_DIR, f"{address}.json")
     existing_utxos = read_existing_utxos(filename)
-    existing_txids = {(existing_utxo['txid'], existing_utxo['vout']) for existing_utxo in existing_utxos}
+    existing_utxos_dict = {(utxo['txid'], utxo['vout']): utxo for utxo in existing_utxos}
 
-    utxos = coin_rpc.list_unspent()
+    current_utxos = coin_rpc.list_unspent(address)
+    current_utxos_set = {(utxo['txid'], utxo['vout']) for utxo in current_utxos}
 
-    new_utxos = []
-    for utxo in utxos:
+    updated_utxos = []
+    for utxo in current_utxos:
         if utxo['address'] == address:
-            amount = Decimal(utxo['amount'])
-            genesis_txid = "not an ord"
-            sms_txid = "not an sms"
-            timestamp = None
-            sender_address = None
-            child_txid = None
-            mime_type = None
+            utxo_key = (utxo['txid'], utxo['vout'])
+            if utxo_key in existing_utxos_dict:
+                # Use existing data if available
+                updated_utxo = existing_utxos_dict[utxo_key]
+            else:
+                # Process new UTXO
+                updated_utxo = process_new_utxo(coin_rpc, utxo)
+            updated_utxos.append(updated_utxo)
 
-            if (utxo['txid'], utxo['vout']) not in existing_txids:
-                if amount <= Decimal('0.001'):
-                    print(f"Tracing ordinals for UTXO: {utxo['txid']} with amount {utxo['amount']}")
-                    trace_result = coin_rpc.trace_ordinal_and_sms(utxo['txid'], utxo['vout'])
-                    if trace_result:
-                        sms_txid = trace_result.get("sms_txid", sms_txid)
-                        sender_address = trace_result.get("sender_address", sender_address)
-                        child_txid = trace_result.get("child_txid", child_txid)
-                        if sms_txid != "not an sms":
-                            genesis_txid = "encrypted message"
-                        else:
-                            genesis_txid = trace_result.get("genesis_txid", genesis_txid)
-                        
-                        if genesis_txid != "not an ord" and genesis_txid != "encrypted message":
-                            mime_type = get_mime_type(genesis_txid)
+    # Remove UTXOs that are no longer in the wallet
+    updated_utxos = [utxo for utxo in updated_utxos if (utxo['txid'], utxo['vout']) in current_utxos_set]
 
-                tx_details = coin_rpc.get_transaction(utxo['txid'])
-                if tx_details and 'blocktime' in tx_details:
-                    timestamp = datetime.utcfromtimestamp(tx_details['blocktime']).strftime('%Y-%m-%d %H:%M:%S')
+    if not updated_utxos:
+        if os.path.exists(filename):
+            os.remove(filename)
+            print(f"Removed file {filename} as the wallet has no UTXOs")
+    else:
+        # Write updated UTXOs back to file
+        with open(filename, 'w') as f:
+            json.dump(updated_utxos, f, indent=4)
+        print(f"Updated file {filename} with {len(updated_utxos)} UTXOs")
 
-            new_utxos.append({
-                'txid': utxo['txid'],
-                'vout': utxo['vout'],
-                'amount': float(amount),
-                'genesis_txid': genesis_txid,
-                'sms_txid': sms_txid,
-                'child_txid': child_txid,
-                'timestamp': timestamp,
-                'sender_address': sender_address,
-                'mime_type': mime_type
-            })
+def process_new_utxo(coin_rpc, utxo):
+    amount = Decimal(utxo['amount'])
+    genesis_txid = "not an ord"
+    sms_txid = "not an sms"
+    timestamp = None
+    sender_address = None
+    child_txid = None
+    mime_type = None
 
-            coin_rpc.reconnect()
+    print(f"Processing new UTXO: {utxo['txid']} with amount {utxo['amount']}")
+    trace_result = coin_rpc.trace_ordinal_and_sms(utxo['txid'], utxo['vout'])
+    if trace_result:
+        sms_txid = trace_result.get("sms_txid", sms_txid)
+        sender_address = trace_result.get("sender_address", sender_address)
+        child_txid = trace_result.get("child_txid", child_txid)
+        if sms_txid != "not an sms":
+            genesis_txid = "encrypted message"
+        else:
+            genesis_txid = trace_result.get("genesis_txid", genesis_txid)
+        
+        # Always attempt to get MIME type for genesis transactions
+        if genesis_txid != "not an ord" and genesis_txid != "encrypted message":
+            mime_type = coin_rpc.get_mime_type(genesis_txid)
+            print(f"MIME type for {genesis_txid}: {mime_type}")
 
-    existing_utxos_dict = {(existing_utxo['txid'], existing_utxo['vout']): existing_utxo for existing_utxo in existing_utxos}
-    for utxo in new_utxos:
-        if (utxo['txid'], utxo['vout']) in existing_utxos_dict:
-            utxo['genesis_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('genesis_txid', utxo['genesis_txid'])
-            utxo['sms_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sms_txid', utxo['sms_txid'])
-            utxo['child_txid'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('child_txid', utxo['child_txid'])
-            utxo['timestamp'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('timestamp', utxo['timestamp'])
-            utxo['sender_address'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('sender_address', utxo['sender_address'])
-            utxo['mime_type'] = existing_utxos_dict[(utxo['txid'], utxo['vout'])].get('mime_type', utxo['mime_type'])
-        existing_utxos_dict[(utxo['txid'], utxo['vout'])] = utxo
-    merged_utxos = list(existing_utxos_dict.values())
+    tx_details = coin_rpc.get_transaction(utxo['txid'])
+    if tx_details and 'blocktime' in tx_details:
+        timestamp = datetime.utcfromtimestamp(tx_details['blocktime']).strftime('%Y-%m-%d %H:%M:%S')
 
-    # Ensure the directory exists before writing the file
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    return {
+        'txid': utxo['txid'],
+        'vout': utxo['vout'],
+        'amount': float(amount),
+        'genesis_txid': genesis_txid,
+        'sms_txid': sms_txid,
+        'child_txid': child_txid,
+        'timestamp': timestamp,
+        'sender_address': sender_address,
+        'coin_type': coin_rpc.coin_type,
+        'mime_type': mime_type
+    }
 
-    with open(filename, 'w') as f:
-        json.dump(merged_utxos, f, indent=4)
-    print(f"Created or updated file {filename} with UTXOs for address {address}")
-
-def process_all_wallets(coin_rpc):
-    addresses = list_wallet_addresses(coin_rpc)
+def process_all_addresses(coin_rpc):
+    addresses = coin_rpc.list_addresses()
     for address in addresses:
-        print(f"Processing UTXOs for address: {address}")
+        print(f"Processing address: {address}")
         try:
             process_wallet_utxos(coin_rpc, address)
         except Exception as e:
             print(f"An error occurred while processing address {address}: {e}")
 
 if __name__ == "__main__":
-    for coin_type in ['dogecoin', 'bellscoin']:
-        print(f"\nProcessing {coin_type.capitalize()} wallets:")
-        try:
-            coin_rpc = CoinRPC(coin_type)
-            process_all_wallets(coin_rpc)
-        except Exception as e:
-            print(f"An error occurred while processing {coin_type} wallets: {e}")
+    default_section = config['default']
+    for coin in ['primary', 'fallback', 'secondary', 'tertiary']:
+        if coin in default_section:
+            coin_type = default_section[coin]
+            print(f"\nProcessing {coin_type.capitalize()} addresses:")
+            try:
+                coin_rpc = CoinRPC(coin_type)
+                if coin_rpc.rpc_connection:
+                    process_all_addresses(coin_rpc)
+                else:
+                    print(f"Skipping {coin_type} due to connection failure")
+            except Exception as e:
+                print(f"An error occurred while processing {coin_type} addresses: {e}")
